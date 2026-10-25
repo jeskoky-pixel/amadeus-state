@@ -1,0 +1,76 @@
+{
+  "name": "@amadeus/state",
+  "version": "1.0.0",
+  "description": "Amadeus State: persistent Mood, Energy, Curiosity, and interests for DeepSeek Harness, with a native settings page.",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "src",
+    "lib",
+    "scripts",
+    "test",
+    "locale",
+    "docs/ADR-001-state-v1.md",
+    "docs/ARCHITECTURE.md",
+    "docs/BACKUP_ROLLBACK.md",
+    "docs/BUILD.md",
+    "docs/COMPATIBILITY.md",
+    "docs/INSTALL.md",
+    "docs/PERFORMANCE.md",
+    "docs/RELEASE_NOTES.md",
+    "docs/UPGRADE.md",
+    "docs/USER_GUIDE.zh.md",
+    "docs/assets",
+    "docs/verification",
+    "cordis.patch.yml",
+    "README.md",
+    "CHANGELOG.md",
+    "icon.svg"
+  ],
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-plugin-manager"
+      ]
+    }
+  },
+  "engines": {
+    "node": ">=22.13.0",
+    "dsh": ">=0.2.1-rc.3 <0.3.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/schemastery": "3.18.5"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "amadeus",
+    "state",
+    "mood",
+    "curiosity",
+    "interests"
+  ],
+  "scripts": {
+    "build": "node scripts/build-client.mjs",
+    "test": "node test/run.js",
+    "test:node": "node --test test/*.test.js",
+    "bench": "node scripts/bench.mjs",
+    "check": "node scripts/build-client.mjs && node scripts/check.mjs",
+    "verify:package": "node scripts/verify-package.mjs",
+    "package": "node scripts/package.mjs"
+  }
+}

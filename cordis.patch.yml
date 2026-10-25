@@ -1,0 +1,6 @@
+# Amadeus State bundle patch.
+# Install through the official DSH Plugin Manager (`install_bundle` or the
+# Settings -> Plugins page); do not merge this row into a live profile by hand.
+- insert:
+    - id: amadeus-state
+      name: '@amadeus/state'

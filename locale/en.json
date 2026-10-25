@@ -1,0 +1,26 @@
+{
+  "meta": {
+    "title": "Amadeus State",
+    "description": "Persistent Mood, Energy, Curiosity, and interests with a native DSH settings page. Supplies tendencies only; never overrides Persona, permissions, or Life scheduling."
+  },
+  "name": "Amadeus State",
+  "description": "Persistent Mood, Energy, Curiosity, and interests with a native DSH settings page. Supplies tendencies only; never overrides Persona, permissions, or Life scheduling.",
+  "settings": {
+    "title": "Amadeus State",
+    "overview": "Overview",
+    "common": "Common settings",
+    "interests": "Interests",
+    "audit": "History",
+    "advanced": "Advanced",
+    "diagnostics": "Diagnostics"
+  },
+  "config": {
+    "stateEvolutionEnabled": "Enable state evolution",
+    "influenceStrength": "Behavioural influence",
+    "eventSensitivity": "Event sensitivity",
+    "autoRecovery": "Automatic recovery",
+    "modelAppraisalEnabled": "Model event appraisal",
+    "contextInjectionMode": "Dynamic context",
+    "autoInterestUpdate": "Automatic interest updates"
+  }
+}

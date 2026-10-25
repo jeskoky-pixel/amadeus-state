@@ -9,3 +9,12 @@
 /memory/
 /profiles/
 node_modules/
+dist/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-journal
+backups/
+coverage/
+.npm-cache/
+*.log
