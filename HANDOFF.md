@@ -23,22 +23,24 @@
 - 本地化：`locale/*.json` 顶层 `meta.title`/`meta.description`。
 - 管理 HTTP API：同源、State 标记头、DSH `connection.admit`、owner principal、JSON 校验、无路径/秘密。
 - 可选 Life / Memory 适配：Life 公开 identity/activity 服务；Mneme 原生 `memory_get` 读取引用；5 秒超时与干净降级。没有 Memory 写入方法/设置；自动写入硬禁用。
-- 文档：README、普通用户指南、安装、备份/回滚、架构、ADR、locale。
-- 测试：`npm test` 98 项（官方 Schemastery 可用时 98/98；默认环境 97 pass + 1 skip）；`npm run check` 通过；`npm run package` 生成 tarball 与 SHA-256。
+- 文档：README、CHANGELOG、普通用户指南、安装、升级、备份/回滚、架构、ADR、发行说明、兼容性、构建/可复现性、locale。
+- 测试：`npm test` 101 项（官方 Schemastery 可用时 101/101；默认环境 100 pass + 1 skip）；`npm run check` 通过；`npm run package` 生成并验证 tarball；`npm run verify:package` 通过。
 - 设置页 schema：`Config.toJSON()` 使用官方 `{uid,refs}` 信封，所有嵌套 schema 位置为数字 uid；已用官方 Schemastery 3.18.5 + 完整默认 Config 回归。
+- 产品化发行收尾：`engines.dsh` 收紧为 `>=0.2.1-rc.3 <0.3.0`；新增发行说明/兼容/升级/构建文档；`package` 固定 `SOURCE_DATE_EPOCH`/`TZ` 连续两次打包比对 SHA-256，写 `PACKAGE_INFO.json`/`BUILD_INFO.json`，并由 `verify-package.mjs` 逐文件核对当前源码、client bundle、发行文档和禁止内容。
 - Review 3：深色主题 selected/primary 使用显式高对比 accent；兴趣页删除提示只在真实删除后显示；移除 inert `memoryWriteEnabled` 字段/写入路径。
 - Review 4：新增 Plugin Manager `plugins.detail.section` 基本配置卡（同 configForms/revision、bundle/row 过滤、生命周期撤销）与 `locale` meta 本地化。
 
 ## 验证命令与结果
 
 ```text
-npm test        # 98 tests: 97 pass + 1 official-schema skip by default
-DSH_SCHEMASTER_PATH=<official 3.18.5> npm test  # 98/98 pass
-npm run check   # build + release checks pass
-npm run package # dist/amadeus-state-1.0.0.tgz
+npm test        # 101 tests: 100 pass + 1 official-schema skip by default
+DSH_SCHEMASTER_PATH=<official 3.18.5> npm test  # 101/101 pass
+npm run check   # build + release checks pass (25 fields)
+npm run package # deterministic two-pack + BUILD_INFO/PACKAGE_INFO + verification
+npm run verify:package
 ```
 
-最终 package 的大小与 SHA-256 以本地生成的 `dist/PACKAGE_INFO.json` 为准；代码或文档变更后需重新运行。
+最终 package 的大小与 SHA-256 以本地生成的 `dist/PACKAGE_INFO.json` 为准；`dist/BUILD_INFO.json` 记录 source/client 哈希；代码或文档变更后需重新运行。当前产品化产物：`dist/amadeus-state-1.0.0.tgz`，57 files，250053 bytes，SHA-256 `5af697dda6eb0e2773bcbde7ef3307d9d3b6389463af0ed404e1818e374d4261`（若后续文件再变动以最新回执为准）。
 
 ## 已知限制
 
@@ -54,7 +56,7 @@ npm run package # dist/amadeus-state-1.0.0.tgz
 
 官方 DSH Desktop `0.2.1-rc.3` 已通过 Plugin Manager 安装 State tarball；原生设置入口、Plugin Manager 基础配置、真实模型四个工具、Life 完成/重复/未知活动、Mneme 合成记忆首次/重复/未知引用、配置保存、兴趣、预览、二次确认重置、恢复默认、停用及硬重启持久化均有实际结果。权限实测拒绝跨站写入、缺标记写入及未认证读取。公开证据及限制见 [验收报告](docs/verification/STATE_V1_ACCEPTANCE_2026-10-25.md)。
 
-最终包和哈希需以最新 `dist/PACKAGE_INFO.json` 为准；文档或截图变化后应重新打包。隔离实机测试数据与原始会话记录仅保存在主项目 `private/state-development/`，不得推送到公开 GitHub。
+最终包和哈希需以最新 `dist/PACKAGE_INFO.json` 为准；文档或截图变化后应重新打包。隔离实机测试数据与原始会话记录仅保存在主项目 `private/state-development/`，不得推送到公开 GitHub。产品化复核后 Codex 仍需重新安装当前 tarball 做最终隔离验收；已有实机结果不对应新哈希包。
 
 ## 后续交付
 

@@ -4,8 +4,9 @@
 
 ## 前置条件
 
-- Windows DSH Desktop Official **>=0.2.1-rc.2**（以实际版本与设置 slot 行为为准）。
+- Windows DSH Desktop Official **>=0.2.1-rc.3 <0.3.0**；最终实机基线为 `0.2.1-rc.3`。
 - Node.js **>=22.13.0**，且运行时支持 `node:sqlite`。
+- 版本：`@amadeus/state@1.0.0`，SQLite schema `1`。
 - 使用隔离 DSH Profile / 合成数据；不要指向生产 Life、Memory、QQ Bridge 或真实联系人。
 
 ## 构建与检查
@@ -14,18 +15,19 @@
 
 ```powershell
 npm test
-npm run build
 npm run check
 npm run package
+npm run verify:package
 ```
 
 产物：
 
 - `lib/client.js`：DSH lazy-CJS 浏览器半端，package `dsh.client` 声明。
-- `dist/amadeus-state-1.0.0.tgz`：npm pack 生成的独立安装包。
-- `dist/PACKAGE_INFO.json`：包含版本、文件列表、大小和 SHA-256。
+- `dist/amadeus-state-1.0.0.tgz`：确定性的 npm pack 独立安装包。
+- `dist/PACKAGE_INFO.json`：包含版本、实际文件列表、大小、SHA-256、可复现标记。
+- `dist/BUILD_INFO.json`：client/source 哈希、Node/DSH 引擎和构建来源清单。
 
-`npm run package` 会先构建客户端，再调用 `npm pack`。安装包包含 `src/`、`lib/`、`locale/`、`docs/`、`cordis.patch.yml`、`README.md` 与图标；不依赖源码工作树的临时文件。
+`npm run package` 会先构建客户端，再连续打包两次并比较 SHA-256；不一致会失败。随后 `verify:package` 检查 tarball 每个文件与当前工作树字节一致、发行文档完整、无数据库/日志/密钥/私密路径。安装包包含 `src/`、`lib/`、`locale/`、`docs/`、`scripts/`、`test/`、`cordis.patch.yml`、`README.md`、`CHANGELOG.md` 与图标；不依赖源码工作树的临时文件。
 
 ## 通过官方 Plugin Manager 安装
 
@@ -40,6 +42,22 @@ npm run package
    - 卸载/停用后确认入口撤销，再重新安装。
 
 不要通过修改 DSH Desktop 核心源码来添加入口。
+
+## 升级与回滚
+
+1. 升级前先创建 State 数据库备份，记录当前版本、schema、tarball SHA-256。
+2. 在 Plugin Manager 中用新 tarball 替换旧版本；不要同时启用两个 State 实例。
+3. 若 DSH 提示需要重启，完成硬重启；确认版本、两个设置入口和数据。
+4. 不兼容 schema 会先备份再拒绝；不要手工改 `meta.schema_version`。
+5. 回滚时恢复旧 tarball 和匹配数据库备份；完整步骤见 [升级与回滚](UPGRADE.md)。
+
+## 构建验证与可复现性
+
+```powershell
+npm run verify:package
+```
+
+该命令不安装插件，只验证 `dist/` 中的最终 tarball、`PACKAGE_INFO.json`、`BUILD_INFO.json` 与当前源码一致。连续两次 `npm run package` 应产生相同 SHA-256；固定 `SOURCE_DATE_EPOCH=2026-10-25T00:00:00Z` 与 `TZ=UTC`。详见 [构建与可复现性](BUILD.md)。
 
 ## 安装后验证（Codex 实机清单）
 

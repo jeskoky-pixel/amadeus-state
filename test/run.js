@@ -19,4 +19,5 @@ import './gui-state.test.js';
 import './gui-product.test.js';
 import './client.test.js';
 import './package.test.js';
+import './release-package.test.js';
 import './apply.test.js';

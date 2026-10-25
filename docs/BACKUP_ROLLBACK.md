@@ -52,6 +52,18 @@ State 只拥有自己的 SQLite 数据库：
 - 不兼容/较新版本会先备份再拒绝；未来受支持迁移会在单个事务中执行并重新校验表。
 - 迁移失败会回滚，原始数据库保留。
 
+## 升级插件版本
+
+当前正式版本为 `1.0.0`，Schema `1`。升级前：
+
+1. 记录当前版本、Schema 和 tarball SHA-256。
+2. 创建 `state.sqlite` 备份并保留旧 tarball/`PACKAGE_INFO.json`。
+3. 通过 Plugin Manager 替换 tarball；不要同时启用两个 State 实例。
+4. 重启后检查版本、设置入口、两个配置入口、状态/兴趣/审计和数据库诊断。
+5. 若新版本拒绝当前 Schema，停止并恢复升级前数据库/旧版本；不要手工改 `meta.schema_version`。
+
+完整步骤见 [升级与回滚](UPGRADE.md)。
+
 ## 回滚插件版本
 
 1. 先创建备份并记录当前版本/Schema。

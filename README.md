@@ -20,7 +20,7 @@ State 只提供行为倾向。它不覆盖 Persona，不建立第二套主动消
 ## 兼容性
 
 - Node.js **>=22.13.0**（使用内置 `node:sqlite`）。
-- DSH **>=0.2.1-rc.2**（声明 `engines.dsh`；实际以隔离 Desktop 验收为准）。
+- DSH **>=0.2.1-rc.3 <0.3.0**（声明 `engines.dsh`；隔离验收基线为 `0.2.1-rc.3`）。
 - 浏览器半端使用 DSH lazy-CJS `window.__ModuleLoader__.load`、`slots.inject('settings.section')` 与 `ctx.configForms`。
 - 不修改 DSH Desktop/核心源码，不依赖 Life/Memory 私有模块或数据库。
 
@@ -29,11 +29,15 @@ State 只提供行为倾向。它不覆盖 Persona，不建立第二套主动消
 构建并生成可分发包：
 
 ```powershell
-npm run build
+npm test
+npm run check
 npm run package
+npm run verify:package
 ```
 
-`dist/PACKAGE_INFO.json` 记录 tarball、大小与 SHA-256。然后在隔离 DSH Desktop 的 **设置 → 插件** 中通过 Plugin Manager 安装该 tarball 或本地 `link:` 包。完整步骤、验证清单与回滚见 [docs/INSTALL.md](docs/INSTALL.md)；隔离实机结果与设置截图见 [State v1 验收报告](docs/verification/STATE_V1_ACCEPTANCE_2026-10-25.md)。
+`dist/PACKAGE_INFO.json` 记录 tarball 实际文件列表、大小、SHA-256 与可复现标记；`dist/BUILD_INFO.json` 记录 client/source 哈希和构建来源。`npm run package` 会连续打包两次并比较哈希，再执行包内容一致性验证。然后在隔离 DSH Desktop 的 **设置 → 插件** 中通过 Plugin Manager 安装该 tarball 或本地 `link:` 包。完整步骤、升级、验证清单与回滚见 [docs/INSTALL.md](docs/INSTALL.md)、[docs/UPGRADE.md](docs/UPGRADE.md)；隔离实机结果与设置截图见 [State v1 验收报告](docs/verification/STATE_V1_ACCEPTANCE_2026-10-25.md)。
+
+内部正式版本为 **1.0.0（2026-10-25）**；未进行 npm 发布、GitHub Release、PR 合并或生产部署。发行说明与兼容性见 [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md)、[docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)。
 
 ## 设置入口
 
@@ -71,21 +75,27 @@ npm run package
 ## 开发命令
 
 ```powershell
-npm test          # in-process node:test suite
-npm run build     # build lib/client.js lazy-CJS bundle
-npm run check     # build + release checks
-npm run package   # build + npm pack + SHA-256
+npm test            # in-process node:test suite
+npm run build       # build lib/client.js lazy-CJS bundle
+npm run check       # build + release checks
+npm run package     # deterministic two-pack + BUILD_INFO + PACKAGE_INFO
+npm run verify:package  # verify tarball vs current worktree/content policy
 ```
 
-当前交付不包含提交、安装、发布或生产 Profile 修改；真实 Desktop 安装/UI/模型调用验收由 Codex 执行。已知限制与验收清单见 `.state-task/CREATOR_REPORT.md`（由实现者写入）。
+本轮产品化不包含 Git 提交、安装、公开发布或生产 Profile 修改；真实 Desktop 最终安装/UI/模型调用验收由 Codex 执行。详细风险和安装清单见 [发行说明](docs/RELEASE_NOTES.md) 与 [State v1 验收报告](docs/verification/STATE_V1_ACCEPTANCE_2026-10-25.md)。
 
 ## 文档
 
 - [普通用户指南](docs/USER_GUIDE.zh.md)
 - [安装与验收准备](docs/INSTALL.md)
+- [升级与回滚](docs/UPGRADE.md)
 - [备份、迁移与回滚](docs/BACKUP_ROLLBACK.md)
+- [发行说明](docs/RELEASE_NOTES.md) / [变更记录](CHANGELOG.md)
+- [兼容性](docs/COMPATIBILITY.md)
+- [构建与可复现性](docs/BUILD.md)
 - [架构与信任边界](docs/ARCHITECTURE.md)
 - [产品架构决策](docs/ADR-001-state-v1.md)
+- [State v1 验收报告](docs/verification/STATE_V1_ACCEPTANCE_2026-10-25.md)
 
 ## 许可证
 
