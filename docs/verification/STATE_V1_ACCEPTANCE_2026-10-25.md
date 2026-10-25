@@ -28,6 +28,7 @@
 - `npm test`：101 项，默认环境 100 通过 + 1 官方库跳过；官方 Schemastery 3.18.5 环境 101/101。
 - `npm run check`：`lib/client.js` 构建、manifest、两个设置 slot、25 个字段和版本一致性通过。
 - `npm run package`：固定 `SOURCE_DATE_EPOCH`/`TZ`，连续两次打包 SHA-256 一致；`scripts/verify-package.mjs` 逐文件验证 tarball 与当前工作树，检查必需发行文档、client markers 和禁止内容。
+- 联合实机返工：`settings.section`/`plugins.detail.section` 的注册 disposer 已返回给 `whileServed`，并加入幂等 guard；回归测试覆盖重复 watch sync、namespace 释放和二次释放不重复注销。最终三插件共存实机复验仍由 Codex 执行。
 - 本轮产品化**未重新安装**最终 tarball；Codex 必须重新安装当前 `dist/PACKAGE_INFO.json` 指向的包并复验。历史实机结果来自之前安装包，不自动等同于新哈希包。
 
 ## 性能与隐私边界

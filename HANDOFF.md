@@ -40,7 +40,7 @@ npm run package # deterministic two-pack + BUILD_INFO/PACKAGE_INFO + verificatio
 npm run verify:package
 ```
 
-最终 package 的大小与 SHA-256 以本地生成的 `dist/PACKAGE_INFO.json` 为准；`dist/BUILD_INFO.json` 记录 source/client 哈希；代码或文档变更后需重新运行。当前产品化产物：`dist/amadeus-state-1.0.0.tgz`，57 files，250053 bytes，SHA-256 `5af697dda6eb0e2773bcbde7ef3307d9d3b6389463af0ed404e1818e374d4261`（若后续文件再变动以最新回执为准）。
+最终 package 的大小与 SHA-256 以本地生成的 `dist/PACKAGE_INFO.json` 为准；`dist/BUILD_INFO.json` 记录 source/client 哈希；代码或文档变更后需重新运行。当前产品化产物：`dist/amadeus-state-1.0.0.tgz`，57 files，251431 bytes，SHA-256 `df88e747ae72832e72db847022bcffb143f696c475ff6c36fe5cd516dfe4efc9`（联合实机返工后；若后续文件再变动以最新回执为准）。
 
 ## 已知限制
 

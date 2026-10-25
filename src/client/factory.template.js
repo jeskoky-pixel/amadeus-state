@@ -1703,9 +1703,18 @@ function DetailSection({ ctx, subject }) {
 return {
   inject: ['slots', 'configForms'],
   apply(ctx) {
+    let settingsActive;
+    let detailActive;
+    // whileServed keeps `off = register(...)` and releases it only when the
+    // namespace stops being served. Returning a disposer (and being idempotent
+    // across repeated watch syncs) prevents a second registration with the same
+    // slot id. A fire-and-forget register leaves `off` undefined and duplicates
+    // the entry after disable/re-enable, HMR or a mirror refresh.
     const activate = () => {
+      if (settingsActive) return settingsActive.dispose;
+      let dispose = () => {};
       try {
-        ctx.slots.inject('settings.section', () =>
+        dispose = ctx.slots.inject('settings.section', () =>
           ctx.slots.register(
             {
               name: 'settings.section',
@@ -1715,14 +1724,23 @@ return {
             },
             () => h(Panel, { ctx }),
           ),
-        );
+        ) || (() => {});
       } catch (error) {
         console.error('[amadeus-state] settings.section unavailable', error);
       }
+      const disposal = () => {
+        if (!settingsActive || settingsActive.dispose !== disposal) return;
+        settingsActive = undefined;
+        try { dispose(); } catch { /* already disposed */ }
+      };
+      settingsActive = { dispose: disposal };
+      return disposal;
     };
     const activateDetail = () => {
+      if (detailActive) return detailActive.dispose;
+      let dispose = () => {};
       try {
-        ctx.slots.inject('plugins.detail.section', () =>
+        dispose = ctx.slots.inject('plugins.detail.section', () =>
           ctx.slots.register(
             {
               name: 'plugins.detail.section',
@@ -1731,17 +1749,24 @@ return {
             },
             (props) => (isStateSubject(props?.subject) ? h(DetailSection, { ctx, subject: props.subject }) : null),
           ),
-        );
+        ) || (() => {});
       } catch (error) {
         console.error('[amadeus-state] plugins.detail.section unavailable', error);
       }
+      const disposal = () => {
+        if (!detailActive || detailActive.dispose !== disposal) return;
+        detailActive = undefined;
+        try { dispose(); } catch { /* already disposed */ }
+      };
+      detailActive = { dispose: disposal };
+      return disposal;
     };
     if (ctx.configForms && typeof ctx.configForms.whileServed === 'function') {
       ctx.effect(() => ctx.configForms.whileServed([NS], activate), 'amadeus-state: settings page');
       ctx.effect(() => ctx.configForms.whileServed([NS], activateDetail), 'amadeus-state: plugin detail');
     } else {
-      activate();
-      activateDetail();
+      ctx.effect(() => activate(), 'amadeus-state: settings page');
+      ctx.effect(() => activateDetail(), 'amadeus-state: plugin detail');
     }
   },
 };

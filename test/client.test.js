@@ -55,7 +55,7 @@ test('factory materializes with only the React baseline module', () => {
   assert.equal(typeof module.apply, 'function');
 });
 
-test('apply registers one settings.section and one scoped plugin-manager detail section', () => {
+test('apply registers one settings.section and one scoped detail section, idempotent across mirror sync/disposal', () => {
   let loaded;
   const fakeReact = {
     createElement(type) {
@@ -89,14 +89,26 @@ test('apply registers one settings.section and one scoped plugin-manager detail 
   const injectedNames = [];
   const effects = [];
   let disposed = 0;
+  let unregistered = 0;
+  let live = 0;
   const ctx = {
     configForms: {
       whileServed(namespaces, register) {
         assert.deepEqual(Array.from(namespaces), ['amadeus-state']);
-        const disposer = register(new Set(namespaces));
+        let current;
+        const sync = () => {
+          const next = register(new Set(namespaces));
+          if (current !== next) {
+            if (typeof current === 'function') current();
+            current = next;
+          }
+        };
+        // A mirror refresh / re-watch must not create a second slot entry.
+        sync();
+        sync();
         return () => {
           disposed += 1;
-          if (typeof disposer === 'function') disposer();
+          if (typeof current === 'function') current();
         };
       },
     },
@@ -107,7 +119,14 @@ test('apply registers one settings.section and one scoped plugin-manager detail 
       },
       register(spec, render) {
         registrations.push({ spec, render });
-        return () => {};
+        live += 1;
+        let released = false;
+        return () => {
+          if (released) return;
+          released = true;
+          live -= 1;
+          unregistered += 1;
+        };
       },
     },
     effect(fn) {
@@ -118,6 +137,8 @@ test('apply registers one settings.section and one scoped plugin-manager detail 
   };
   module.apply(ctx);
   assert.deepEqual(injectedNames, ['settings.section', 'plugins.detail.section']);
+  assert.equal(registrations.length, 2, 'repeated watch sync must not duplicate registrations');
+  assert.equal(live, 2);
   const settings = registrations.find((entry) => entry.spec.name === 'settings.section');
   const detail = registrations.find((entry) => entry.spec.name === 'plugins.detail.section');
   assert.ok(settings, 'settings.section registration is required');
@@ -133,9 +154,15 @@ test('apply registers one settings.section and one scoped plugin-manager detail 
   assert.equal(detail.render({ subject: { kind: 'bundle', pkg: { name: '@other/plugin' } } }), null);
   assert.ok(detail.render({ subject: { kind: 'row', pkg: { name: '@amadeus/state' }, row: { moduleName: '@amadeus/state' } } }));
   assert.equal(disposed, 0);
+  assert.equal(unregistered, 0);
   assert.equal(effects.length, 2);
   for (const dispose of effects) dispose();
   assert.equal(disposed, 2);
+  assert.equal(unregistered, 2, 'namespace release must unregister both contributions');
+  assert.equal(live, 0);
+  // Idempotent disposal must not double-release a slot entry.
+  for (const dispose of effects) dispose();
+  assert.equal(unregistered, 2);
 });
 
 test('injected metadata covers every public field with both languages', () => {

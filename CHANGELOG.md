@@ -33,6 +33,14 @@ pass.
 - Release tooling: source/client/tarball consistency verification, Build Info,
   two-pack reproducibility check, SHA-256 package receipt and release docs.
 
+### Fixed
+
+- `settings.section` and `plugins.detail.section` now return their registration
+  disposer to `configForms.whileServed` and guard against repeated mirror syncs.
+  Disable/re-enable, HMR, namespace withdrawal and re-serve release the old slot
+  entry before registering again; no priority change or swallowed duplicate
+  error is used.
+
 ### Security
 
 - Model-supplied source, scope, scene, persona, trust, evidence and admin
