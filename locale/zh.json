@@ -1,0 +1,26 @@
+{
+  "meta": {
+    "title": "Amadeus 状态",
+    "description": "持久的心情、精力、好奇心与兴趣，带原生 DSH 设置页。只提供行为倾向，不覆盖人格、权限或 Life 调度。"
+  },
+  "name": "Amadeus 状态",
+  "description": "持久的心情、精力、好奇心与兴趣，带原生 DSH 设置页。只提供行为倾向，不覆盖人格、权限或 Life 调度。",
+  "settings": {
+    "title": "Amadeus 状态",
+    "overview": "状态总览",
+    "common": "常用设置",
+    "interests": "兴趣管理",
+    "audit": "变化记录",
+    "advanced": "高级设置",
+    "diagnostics": "运行诊断"
+  },
+  "config": {
+    "stateEvolutionEnabled": "启用状态演化",
+    "influenceStrength": "状态对行为的影响强度",
+    "eventSensitivity": "状态变化敏感度",
+    "autoRecovery": "自动时间恢复",
+    "modelAppraisalEnabled": "模型事件评价",
+    "contextInjectionMode": "动态上下文注入",
+    "autoInterestUpdate": "兴趣自动更新"
+  }
+}
