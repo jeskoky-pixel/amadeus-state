@@ -2,6 +2,14 @@
 
 Amadeus State 是独立的 DeepSeek Harness（DSH）Cordis 插件，为 Amadeus 提供持续、可解释、可持久化的 **Mood / Energy / Curiosity** 状态与兴趣演化，并在 DSH 设置窗口中提供原生 **Amadeus 状态** 页面。
 
+> 当前为 1.0.0 候选版，代码在 [PR #1](https://github.com/jeskoky-pixel/amadeus-state/pull/1) 审阅中。尚未公开发行或部署到生产 DSH。
+
+## 日常使用
+
+安装后，在 DSH 设置中打开 **Amadeus 状态**：查看情绪、精力、好奇心和兴趣，调整影响强度与敏感度，预览变化，再按需保存。页面可管理兴趣基准、查看事件记录、备份与恢复数据库；重置状态需要二次确认。插件会在模型上下文中提供有界的当前倾向，帮助回复保持连续，但不会替你发送消息或决定外部动作。
+
+State 可以单独运行。Life 和 Memory 存在时会按授权使用它们的公开接口；缺席时核心状态仍工作。普通设置不需要编辑 JSON 或 SQLite。先看 [用户指南](docs/USER_GUIDE.zh.md) 和 [安装步骤](docs/INSTALL.md)。
+
 State 只提供行为倾向。它不覆盖 Persona，不建立第二套主动消息调度，不绕过 Life 的预算/活动/权限，也不复制 Memory 的长期记忆或知识图谱。
 
 ## 功能

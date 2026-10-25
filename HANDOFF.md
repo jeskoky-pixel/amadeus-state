@@ -1,5 +1,11 @@
 # amadeus-state 交接
 
+## 最新状态（2026-10-26）
+
+State 1.0.0 的主要实现和恢复路径返工由原持续 DSH Creator 会话完成。Codex 独立 `npm test` 为 108 pass、1 skip、0 fail；`check` 与 `verify:package` 通过。用户版 README 更新后重建的候选包 `amadeus-state-1.0.0.tgz` SHA-256 为 `782f36651ad82a2a9130b957be9572e28f786fffbea2c68a7e2cc23e4b526ffe`。全新隔离官方 DSH Desktop 对同一运行时代码完成原生设置、GUI 备份与二次确认恢复、恢复前安全备份、合成兴趣管理、参数保存/硬重启、停启/卸载重装与数据保留；SQLite `quick_check=ok`。原 PR #1 保持 OPEN，未合并、未公开发行或部署生产。
+
+用户在 2026-10-26 明确暂缓三插件联合运行；既有联合阶段性证据不作为最终联合验收。接下来仅更新公开文档和原 PR。根 README/HANDOFF 若进入 tarball 文件清单，改动后需重新打包并核对 SHA；不对生产状态库做任何写入。下文较早的“待验收”表述为历史检查点。
+
 记录日期：2026-10-25（Asia/Shanghai）。分支：`codex/state-v1`。
 
 ## 仓库
