@@ -153,6 +153,7 @@ function degradedService({ ctx, getConfig, life, memory, failure, startedAt }) {
       startedAt,
       database: { ok: false, database: 'unavailable', error: safeError(failure) },
       schemaVersion: null,
+      backups: [],
       lastEventAt: null,
       lastError: { at: new Date().toISOString(), message: safeError(failure) },
       contextInjectionMode: getConfig().contextInjectionMode,
@@ -201,9 +202,11 @@ function degradedService({ ctx, getConfig, life, memory, failure, startedAt }) {
     manageInterest: unavailable,
     resetState: unavailable,
     preview: unavailable,
+    listBackups: () => [],
     backup: () => {
       throw new StateStorageError('State storage is unavailable; no backup was created');
     },
+    restoreBackup: unavailable,
     ensureScope: unavailable,
     identityForSession: unavailable,
     currentState: unavailable,

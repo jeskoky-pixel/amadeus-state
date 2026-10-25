@@ -88,6 +88,7 @@ test('apply registers one settings.section and one scoped detail section, idempo
   const registrations = [];
   const injectedNames = [];
   const effects = [];
+  const resyncs = [];
   let disposed = 0;
   let unregistered = 0;
   let live = 0;
@@ -106,6 +107,7 @@ test('apply registers one settings.section and one scoped detail section, idempo
         // A mirror refresh / re-watch must not create a second slot entry.
         sync();
         sync();
+        resyncs.push(sync);
         return () => {
           disposed += 1;
           if (typeof current === 'function') current();
@@ -163,6 +165,14 @@ test('apply registers one settings.section and one scoped detail section, idempo
   // Idempotent disposal must not double-release a slot entry.
   for (const dispose of effects) dispose();
   assert.equal(unregistered, 2);
+  // A namespace that becomes served again (disable/re-enable, HMR, re-watch)
+  // must register exactly once more, then release again cleanly.
+  for (const sync of resyncs) sync();
+  assert.equal(registrations.length, 4);
+  assert.equal(live, 2);
+  for (const dispose of effects) dispose();
+  assert.equal(unregistered, 4);
+  assert.equal(live, 0);
 });
 
 test('injected metadata covers every public field with both languages', () => {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { copyFileSync, existsSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { StateStore } from '../src/store.js';
@@ -143,7 +143,7 @@ test('an empty or corrupt existing file is refused instead of being initialized'
   }
 });
 
-test('a backup can be restored over the live database and reopened', async () => {
+test('service restore preflights, creates a safety backup, reverts data and reopens', async () => {
   const h = makeService();
   try {
     const id = h.identity('session-restore');
@@ -158,28 +158,208 @@ test('a backup can be restored over the live database and reopened', async () =>
       interestDelta: 3,
     });
     const backup = h.service.backup('restore');
-    const backupPath = join(h.temp.dir, 'backups', backup.file);
-    h.store.close();
-    copyFileSync(backupPath, h.temp.path);
+    const preflight = h.store.preflightBackup(backup.file);
+    assert.equal(preflight.schemaVersion, '1');
+    assert.equal(preflight.counts.events, 1);
+    await h.service.recordEvent({
+      identity: id,
+      type: 'knowledge_gained',
+      source: 'host',
+      trust: 'trusted',
+      summary: 'must be reverted',
+      idempotencyKey: 'restore:2',
+      topic: '恢复测试',
+      interestDelta: 3,
+    });
+    assert.equal(h.store.health().counts.events, 2);
+    const restored = h.service.restoreBackup({ file: backup.file, confirm: 'RESTORE' });
+    assert.equal(restored.restored.file, backup.file);
+    assert.equal(restored.health.database.counts.events, 1);
+    assert.equal(h.store.health().counts.interests, 1);
+    assert.ok(readdirSync(join(h.temp.dir, 'backups')).some((name) => name.startsWith('state-before-restore-')));
+    assert.ok(restored.backups.some((item) => item.file === backup.file));
+    // The same service/store object is usable after the reopen.
+    const view = h.service.viewForSession('session-restore');
+    assert.equal(view.state.revision, 2);
+    assert.equal(view.interests[0].name, '恢复测试');
+    await h.service.recordEvent({
+      identity: id,
+      type: 'knowledge_gained',
+      source: 'host',
+      trust: 'trusted',
+      summary: 'after restore',
+      idempotencyKey: 'restore:3',
+    });
+    assert.equal(h.store.health().counts.events, 2);
+  } finally {
+    h.close();
+  }
+});
+
+test('restore failure after the swap rolls back the original database and keeps it usable', async () => {
+  const h = makeService();
+  try {
+    const id = h.identity('session-restore-rollback');
+    await h.service.recordEvent({
+      identity: id,
+      type: 'knowledge_gained',
+      source: 'host',
+      trust: 'trusted',
+      summary: 'original one',
+      idempotencyKey: 'restore-rollback:1',
+    });
+    const backup = h.service.backup('rollback');
+    await h.service.recordEvent({
+      identity: id,
+      type: 'knowledge_gained',
+      source: 'host',
+      trust: 'trusted',
+      summary: 'original two',
+      idempotencyKey: 'restore-rollback:2',
+    });
+    const originalOpen = h.store.open.bind(h.store);
+    let attempts = 0;
+    h.store.open = function failingOpen() {
+      attempts += 1;
+      if (attempts === 1) throw new Error('injected open failure');
+      return originalOpen();
+    };
+    assert.throws(
+      () => h.service.restoreBackup({ file: backup.file, confirm: 'RESTORE' }),
+      /original database file set restored/,
+    );
+    assert.equal(attempts, 2, 'restore must try to reopen the original after rollback');
+    assert.equal(h.store.health().counts.events, 2);
+    const view = h.service.viewForSession('session-restore-rollback');
+    assert.equal(view.state.revision, 3);
+  } finally {
+    h.close();
+  }
+});
+
+test('WAL-backed data survives an injected failure at every restore phase', async () => {
+  const phases = ['before-copy', 'before-close', 'after-close', 'after-preserve', 'after-install', 'after-open'];
+  for (const phase of phases) {
+    const h = makeService();
     try {
-      // The backup intentionally contains the writer lease row. In this
-      // same-process restore test the old adapter has closed but its PID is
-      // still alive, so clear the stale lease as a process restart would.
-      const raw = new DatabaseSync(h.temp.path);
-      raw.prepare("DELETE FROM runtime_leases WHERE key = 'writer'").run();
-      raw.close();
-      const reopened = new StateStore({ databasePath: h.temp.path });
-      try {
-        assert.equal(reopened.health().counts.events, 1);
-        assert.equal(reopened.health().counts.interests, 1);
-      } finally {
-        reopened.close();
-      }
+      const id = h.identity(`session-wal-${phase}`);
+      await h.service.recordEvent({
+        identity: id,
+        type: 'knowledge_gained',
+        source: 'host',
+        trust: 'trusted',
+        summary: 'pre-backup',
+        idempotencyKey: `wal:${phase}:1`,
+      });
+      const backup = h.service.backup('wal');
+      await h.service.recordEvent({
+        identity: id,
+        type: 'knowledge_gained',
+        source: 'host',
+        trust: 'trusted',
+        summary: 'post-backup must survive',
+        idempotencyKey: `wal:${phase}:2`,
+      });
+      assert.ok(existsSync(`${h.temp.path}-wal`), `WAL should exist before ${phase}`);
+      h.store._restorePhase = (observed) => {
+        if (observed === phase) throw new Error(`injected ${phase}`);
+      };
+      assert.throws(
+        () => h.service.restoreBackup({ file: backup.file, confirm: 'RESTORE' }),
+        /original database file set restored|original database restored/,
+        phase,
+      );
+      assert.equal(h.store.health().counts.events, 2, `${phase} must preserve the live WAL-backed event`);
     } finally {
-      // h.close() below is idempotent; h.temp.cleanup() removes the directory.
+      h.close();
+    }
+  }
+});
+
+test('a reopened-store failure preserves the original DB for forensic recovery', async () => {
+  const h = makeService();
+  try {
+    const id = h.identity('session-restore-open-fail');
+    await h.service.recordEvent({
+      identity: id,
+      type: 'knowledge_gained',
+      source: 'host',
+      trust: 'trusted',
+      summary: 'must survive',
+      idempotencyKey: 'restore-open-fail:1',
+    });
+    const backup = h.service.backup('open-fail');
+    h.store.open = () => { throw new Error('injected open failure'); };
+    assert.throws(
+      () => h.service.restoreBackup({ file: backup.file, confirm: 'RESTORE' }),
+      /file set could not be restored|original database restored/,
+    );
+    const raw = new DatabaseSync(h.temp.path, { readOnly: true });
+    try {
+      assert.equal(Number(raw.prepare('SELECT COUNT(*) AS n FROM events').get().n), 1);
+    } finally {
+      raw.close();
     }
   } finally {
     h.temp.cleanup();
+  }
+});
+
+test('a failed rollback preserves old replace artifacts instead of deleting them', async () => {
+  const h = makeService();
+  try {
+    const id = h.identity('session-restore-artifacts');
+    await h.service.recordEvent({
+      identity: id,
+      type: 'knowledge_gained',
+      source: 'host',
+      trust: 'trusted',
+      summary: 'forensic data',
+      idempotencyKey: 'restore-artifacts:1',
+    });
+    const backup = h.service.backup('artifacts');
+    h.store._restorePhase = (phase) => {
+      if (phase === 'after-install' || phase === 'before-rollback') {
+        throw new Error(`injected ${phase}`);
+      }
+    };
+    assert.throws(
+      () => h.service.restoreBackup({ file: backup.file, confirm: 'RESTORE' }),
+      /files are preserved/,
+    );
+    const artifacts = readdirSync(h.temp.dir).filter((name) => name.includes('.restore-'));
+    assert.ok(artifacts.some((name) => name.endsWith('.previous')), 'old database must remain as a forensic artifact');
+    assert.ok(artifacts.some((name) => name.endsWith('-wal') || name.endsWith('-shm')) || artifacts.some((name) => name.endsWith('.previous')));
+  } finally {
+    h.temp.cleanup();
+  }
+});
+
+test('restore rejects invalid names, corrupt files and missing confirmation without touching data', async () => {
+  const h = makeService();
+  try {
+    const backup = h.service.backup('guard');
+    const before = h.store.health().counts;
+    assert.throws(
+      () => h.service.restoreBackup({ file: backup.file, confirm: 'NO' }),
+      /RESTORE confirmation/,
+    );
+    assert.throws(
+      () => h.service.restoreBackup({ file: '../state.sqlite', confirm: 'RESTORE' }),
+      /backup must be a generated/,
+    );
+    assert.throws(
+      () => h.service.restoreBackup({ file: 'state-missing.sqlite', confirm: 'RESTORE' }),
+      /not found/,
+    );
+    writeFileSync(join(h.temp.dir, 'backups', 'state-corrupt.sqlite'), 'not a sqlite database');
+    assert.throws(
+      () => h.service.restoreBackup({ file: 'state-corrupt.sqlite', confirm: 'RESTORE' }),
+      /verification failed|integrity|database/i,
+    );
+    assert.deepEqual(h.store.health().counts, before);
+  } finally {
+    h.close();
   }
 });
 

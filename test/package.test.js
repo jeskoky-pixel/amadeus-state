@@ -27,6 +27,7 @@ test('documentation, release notes, upgrade docs and icon are present', () => {
     'docs/RELEASE_NOTES.md',
     'docs/COMPATIBILITY.md',
     'docs/BUILD.md',
+    'docs/PERFORMANCE.md',
     'docs/verification/STATE_V1_ACCEPTANCE_2026-10-25.md',
     'locale/zh.json',
     'locale/en.json',
@@ -34,9 +35,15 @@ test('documentation, release notes, upgrade docs and icon are present', () => {
     assert.ok(existsSync(join(root, file)), `missing ${file}`);
   }
   const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-  for (const file of ['README.md', 'CHANGELOG.md', 'icon.svg', 'docs', 'locale', 'src', 'lib', 'scripts', 'test', 'cordis.patch.yml']) {
+  for (const file of [
+    'README.md', 'CHANGELOG.md', 'icon.svg', 'locale', 'src', 'lib', 'scripts', 'test',
+    'cordis.patch.yml', 'docs/RELEASE_NOTES.md', 'docs/COMPATIBILITY.md', 'docs/UPGRADE.md',
+    'docs/BUILD.md', 'docs/PERFORMANCE.md', 'docs/assets', 'docs/verification',
+  ]) {
     assert.ok(pkg.files.includes(file), `package files must include ${file}`);
   }
+  assert.equal(pkg.files.includes('docs'), false, 'developer-only docs must be listed explicitly');
+  assert.equal(pkg.files.includes('docs/CREATOR_FINAL_PRODUCTIZATION.md'), false, 'creator report is not an install artifact');
 });
 
 test('release identity and compatibility are consistent', () => {

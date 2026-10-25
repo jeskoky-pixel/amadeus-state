@@ -13,6 +13,7 @@
 - 真实 DSH 模型工具：`state_get`、`state_appraise`、`state_interests`、`state_health`。
 - 有界动态上下文；默认 `brief`，可在 GUI 关闭。
 - 安全事件边界、Scene 隔离、撤销 fail-closed、SQLite 备份与审计。
+- 运行诊断中的安全备份恢复：完整性/schema 预检、恢复前安全备份、旧 DB/WAL/SHM 文件集保留、原子替换、失败回滚并重新打开；回滚失败时保留取证 artifacts。
 - Life/Memory 可选集成；缺失或契约不支持时核心继续运行。
 - 三插件共存时，`settings.section` / `plugins.detail.section` 使用可释放、幂等的生命周期注册；停用、启用、HMR、namespace 撤销/恢复不会重复注册。
 

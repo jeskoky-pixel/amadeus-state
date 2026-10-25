@@ -24,6 +24,7 @@ State 只拥有自己的 SQLite 数据库：
 
 - 打开已有数据库时，如果 Schema 版本不兼容，会先复制一份 `backups/state-before-migration-*.sqlite`，然后拒绝使用或执行受支持迁移。
 - **重置当前状态到基准** 前会创建 `backups/state-before-reset-*.sqlite`。
+- **从备份恢复** 前会创建 `backups/state-before-restore-*.sqlite` 安全备份。
 - 设置页 **运行诊断 → 创建数据库备份** 创建 `backups/state-manual-*.sqlite`。
 - 每个数据库目录最多保留 5 个备份（按修改时间修剪）。
 - 备份是 SQLite 一致性文件副本；恢复时先停止 DSH/插件写入。
@@ -35,6 +36,20 @@ State 只拥有自己的 SQLite 数据库：
 3. 或者使用设置页的诊断按钮创建 `backups/` 副本。
 
 ## 恢复
+
+### 通过 GUI 恢复（推荐）
+
+1. 打开 **设置 → Amadeus 状态 → 运行诊断**。
+2. 在 **数据库备份与恢复** 中确认备份列表；需要时可先点 **创建数据库备份**。
+3. 选择一个备份，点击 **从备份恢复**，阅读并确认高风险操作。
+4. Host 会先验证备份的 `integrity_check`、Schema 版本、必需表和列，然后创建 `state-before-restore-*.sqlite` 安全备份，关闭当前数据库。
+5. 关闭后 Host 把当前 `state.sqlite` 及其可能存在的 `-wal`/`-shm` **作为一个旧文件集一起移动到唯一临时名**，不会在保留旧集之前 unlink 活跃 WAL/SHM；不依赖 Windows 关闭时一定 checkpoint。然后原子安装备份并重新打开。
+6. 成功后页面自动刷新状态、兴趣和诊断；如果页面暂时断连，刷新设置页即可。
+7. 如果验证、替换或重新打开失败，Host 恢复旧 DB/WAL/SHM 集合并重开原数据库；如果回滚本身无法立即重命名（例如文件句柄未释放），会 fail closed 并保留旧集、候选文件等取证 artifacts，不会为了显示干净错误而删除它们。查看错误并保留原数据库/备份。
+
+恢复只替换 State 的 SQLite 数据，不修改插件 Config、Life/Memory 数据库、QQ 数据或凭据。
+
+### 手工恢复
 
 1. 停止 DSH/插件写入。
 2. 保存当前数据库副本（不要直接覆盖丢失）。

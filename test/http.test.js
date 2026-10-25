@@ -31,6 +31,10 @@ test('admin API requires an authenticated owner, marker header, and same-origin 
     assert.equal((await owner.request('GET', '/status')).status, 200);
     assert.equal((await remote.request('GET', '/status')).status, 403);
     assert.equal(
+      (await remote.request('POST', '/restore', { file: 'state-x.sqlite', confirm: 'RESTORE' })).status,
+      403,
+    );
+    assert.equal(
       (await owner.request('GET', '/status', undefined, { 'sec-fetch-site': 'cross-site' })).status,
       403,
     );
@@ -183,6 +187,49 @@ test('preview is read-only, interests can be managed, reset conflicts are handle
     assert.equal(deleted.status, 200);
     assert.equal(deleted.body.data.memoryUnaffected, true);
     assert.equal((await api.request('GET', `/interests?scope=${encodeURIComponent(scope)}`)).body.data.interests.length, 0);
+  } finally {
+    h.close();
+  }
+});
+
+test('backups can be listed and restored only with explicit confirmation', async () => {
+  const h = makeService();
+  try {
+    const id = h.identity('session-http-restore');
+    await h.service.recordEvent({
+      identity: id,
+      type: 'knowledge_gained',
+      source: 'host',
+      trust: 'trusted',
+      summary: 'before backup',
+      idempotencyKey: 'http-restore:1',
+      topic: '恢复 HTTP',
+      interestDelta: 4,
+    });
+    const backup = h.service.backup('http');
+    await h.service.recordEvent({
+      identity: id,
+      type: 'knowledge_gained',
+      source: 'host',
+      trust: 'trusted',
+      summary: 'after backup',
+      idempotencyKey: 'http-restore:2',
+    });
+    const api = await httpHarness(h.service);
+    const list = await api.request('GET', '/backups');
+    assert.equal(list.status, 200);
+    assert.ok(list.body.data.backups.some((item) => item.file === backup.file));
+    assert.equal(JSON.stringify(list.body).includes(h.temp.dir), false);
+    assert.equal((await api.request('POST', '/restore', { file: backup.file, confirm: 'NO' })).status, 400);
+    assert.equal((await api.request('POST', '/restore', { file: '../state.sqlite', confirm: 'RESTORE' })).status, 400);
+    const restored = await api.request('POST', '/restore', { file: backup.file, confirm: 'RESTORE' });
+    assert.equal(restored.status, 200);
+    assert.equal(restored.body.data.health.database.counts.events, 1);
+    assert.ok(restored.body.data.backups.some((item) => item.file === backup.file));
+    assert.equal(h.store.health().counts.events, 1);
+    const status = await api.request('GET', '/status');
+    assert.equal(status.status, 200);
+    assert.equal(status.body.data.state, 'ready');
   } finally {
     h.close();
   }

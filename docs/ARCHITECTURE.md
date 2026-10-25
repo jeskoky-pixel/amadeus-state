@@ -97,6 +97,7 @@ type + source + trust + summary + appraisal + deltas + before/after + evidence r
 - 回归测试 `test/schema-serialization.test.js` 同时使用官方 `@deepseek-ai/schemastery`（可用时/`DSH_SCHEMASTER_PATH`）和忠实本地 rehydrator，对完整默认 Config 做校验；结构性检查永远运行，官方库缺失时会 skip 而不是伪通过。
 - 插件管理器与独立页面都使用 DSH 权威 Config：页面与 `plugins.detail.section` 卡片都用 `ctx.configForms.get('amadeus-state')`，保存时带 revision；`whileServed` 保证插件停用/命名空间消失时两个入口同时撤销。
 - 页面保存用 `form.mutate(ops, revision)`；失败保留草稿并提示冲突；恢复默认用一组 `unset`；不直接改 SQLite。插件管理器卡片只暴露 5 个基础字段，使用同一套保存/取消/冲突逻辑。
+- 备份恢复只接受 `backups/` 内的生成文件名；Host 先做 `integrity_check`、Schema/表/列预检，再创建 `state-before-restore-*` 安全备份，关闭连接。关闭后把 live `state.sqlite` + 可能存在的 `-wal`/`-shm` 作为旧文件集移动到唯一临时名（不在保留前 unlink 活跃 sidecar），再原子安装并重开；失败恢复完整旧集合，回滚失败时保留旧集合与候选 artifacts 并 fail closed。浏览器只看到 basename/字节/时间，不接触路径或 SQL。
 - `locale/zh.json`、`locale/en.json` 的顶层 `meta.title`/`meta.description` 供 Plugin Manager 显示本地化名称与描述；package `dsh.client.inject` 同时包含 settings 与 plugin-manager 模块。
 - 动态数据（状态、兴趣、记录、重置、备份）通过 Host API；Host 重新校验范围、类型、确认词和修订号。
 

@@ -10,11 +10,18 @@
  * - Migrations are transactional and preceded by a backup.
  */
 
-import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync, copyFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, renameSync, statSync, unlinkSync, copyFileSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import { STATE_SCHEMA_VERSION, StateClosedError, StateConflictError, StateStorageError } from './model.js';
+import {
+  STATE_SCHEMA_VERSION,
+  StateClosedError,
+  StateConflictError,
+  StateNotFoundError,
+  StateStorageError,
+  StateValidationError,
+} from './model.js';
 
 const REQUIRED_TABLES = [
   'meta',
@@ -857,6 +864,239 @@ export class StateStore {
     }
   }
 
+  /** @returns {string} backup directory; never sent to the browser. */
+  backupDirectory() {
+    return join(dirname(this.databasePath), 'backups');
+  }
+
+  /**
+   * Resolve a backup basename inside the owned backup directory.
+   * @param {unknown} file - generated backup name.
+   * @returns {{name: string, path: string, stat: import('node:fs').Stats}} backup.
+   */
+  resolveBackup(file) {
+    if (this.databasePath === ':memory:') throw new StateStorageError('in-memory State databases have no backups');
+    const name = safeBackupName(file);
+    if (basename(name) !== name) throw new StateValidationError('backup must be a basename, not a path');
+    const path = join(this.backupDirectory(), name);
+    if (!existsSync(path)) throw new StateNotFoundError('State backup was not found');
+    const stat = statSync(path);
+    if (!stat.isFile() || stat.size === 0) throw new StateStorageError('State backup is empty or not a file');
+    return { name, path, stat };
+  }
+
+  /**
+   * List backup basenames with safe metadata. Paths never leave the Host.
+   * @returns {{file: string, bytes: number, createdAt: string}[]} backups.
+   */
+  listBackups() {
+    if (this.databasePath === ':memory:') return [];
+    const dir = this.backupDirectory();
+    if (!existsSync(dir)) return [];
+    return readdirSync(dir)
+      .filter((name) => /^state-.*\.sqlite$/.test(name))
+      .map((name) => {
+        const stat = statSync(join(dir, name));
+        return { file: name, bytes: stat.size, createdAt: new Date(stat.mtimeMs).toISOString() };
+      })
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.file.localeCompare(a.file));
+  }
+
+  /**
+   * Verify a backup before any live file is touched: bounded basename,
+   * integrity_check, schema version, required tables/columns, and row counts.
+   * @param {unknown} file - generated backup name.
+   * @returns {Record<string, any>} preflight result.
+   */
+  preflightBackup(file) {
+    const resolved = this.resolveBackup(file);
+    let db;
+    try {
+      db = new DatabaseSync(resolved.path, { readOnly: true });
+      const integrity = db.prepare('PRAGMA integrity_check').get();
+      if (Object.values(integrity ?? {})[0] !== 'ok') {
+        throw new StateStorageError('State backup failed SQLite integrity_check', {
+          reason: 'backup_integrity_failed',
+        });
+      }
+      const version = db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get();
+      if (version === undefined) {
+        throw new StateStorageError('State backup has no schema version', { reason: 'backup_missing_schema' });
+      }
+      const found = String(version.value);
+      if (found !== STATE_SCHEMA_VERSION) {
+        throw new StateStorageError(`State backup schema ${found} is not supported by this build (${STATE_SCHEMA_VERSION})`, {
+          reason: 'backup_unsupported_schema',
+          found,
+        });
+      }
+      const tables = new Set(
+        db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((row) => String(row.name)),
+      );
+      const missing = REQUIRED_TABLES.filter((name) => !tables.has(name));
+      if (missing.length > 0) {
+        throw new StateStorageError('State backup is missing tables', {
+          reason: 'backup_missing_tables',
+          missing,
+        });
+      }
+      const requiredColumns = {
+        scopes: ['id', 'persona_id', 'scene_id', 'privacy', 'source', 'updated_at'],
+        state_snapshots: ['scope_id', 'mood', 'energy', 'curiosity', 'revision', 'updated_at'],
+        events: ['id', 'scope_id', 'idempotency_key', 'source', 'trust', 'delta_json', 'recorded_at'],
+        interests: ['id', 'scope_id', 'normalized_name', 'baseline', 'activity', 'revision'],
+      };
+      for (const [table, columns] of Object.entries(requiredColumns)) {
+        const have = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((row) => String(row.name)));
+        const absent = columns.filter((name) => !have.has(name));
+        if (absent.length > 0) {
+          throw new StateStorageError(`State backup table ${table} is missing columns`, {
+            reason: 'backup_missing_columns',
+            table,
+            missing: absent,
+          });
+        }
+      }
+      return {
+        file: resolved.name,
+        bytes: resolved.stat.size,
+        schemaVersion: found,
+        counts: {
+          scopes: Number(db.prepare('SELECT COUNT(*) AS n FROM scopes').get().n),
+          events: Number(db.prepare('SELECT COUNT(*) AS n FROM events').get().n),
+          interests: Number(db.prepare('SELECT COUNT(*) AS n FROM interests').get().n),
+        },
+      };
+    } catch (error) {
+      if (error instanceof StateStorageError || error instanceof StateValidationError) throw error;
+      throw new StateStorageError(`State backup verification failed: ${String(error?.message ?? error)}`, {
+        reason: 'backup_preflight_failed',
+      });
+    } finally {
+      try { db?.close(); } catch { /* ignore */ }
+    }
+  }
+
+  /**
+   * Test-only phase hook. Production is a no-op; regression tests override it
+   * to inject a failure after each filesystem replacement step.
+   * @param {string} _phase - phase name.
+   */
+  _restorePhase(_phase) {}
+
+  /**
+   * Replace the live database with a verified backup. The live DB and any
+   * WAL/SHM sidecars are moved as one preserved set only after the connection
+   * is closed; they are never unlinked before rollback can use them. A safety
+   * backup is also made first. Any failure restores the exact old file set and
+   * reopens it; a failed rollback preserves the old set and staged artifacts
+   * instead of deleting them.
+   * @param {unknown} file - generated backup basename.
+   * @returns {{restored: Record<string, any>, safetyBackup: Record<string, any>}} result.
+   */
+  restoreBackup(file) {
+    if (this.databasePath === ':memory:') throw new StateStorageError('in-memory State databases cannot be restored');
+    const candidate = this.preflightBackup(file);
+    const resolved = this.resolveBackup(file);
+    const safety = this.backup('before-restore');
+    const databasePath = this.databasePath;
+    const tempPath = `${databasePath}.restore-${randomUUID()}.tmp`;
+    const previousPath = `${databasePath}.restore-${randomUUID()}.previous`;
+    const previousWal = `${previousPath}-wal`;
+    const previousShm = `${previousPath}-shm`;
+    let closed = false;
+    let movedDatabase = false;
+    let movedWal = false;
+    let movedShm = false;
+    let installed = false;
+    let keepArtifacts = false;
+    try {
+      this._restorePhase('before-copy');
+      copyFileSync(resolved.path, tempPath);
+      // A backup contains the writer lease from the process that made it. Clear
+      // it before opening the staged file so a same-process restore does not
+      // fail closed on its own stale lease.
+      clearRuntimeLease(tempPath);
+      this._restorePhase('before-close');
+      this.close();
+      closed = true;
+      this._restorePhase('after-close');
+      if (!existsSync(databasePath)) {
+        throw new StateStorageError('live State database disappeared during restore', { reason: 'restore_live_missing' });
+      }
+      // Preserve the live database and sidecars as a set. Do not unlink a live
+      // WAL/SHM: close may checkpoint on this runtime, but correctness must not
+      // depend on that checkpoint having happened.
+      renameSync(databasePath, previousPath);
+      movedDatabase = true;
+      if (existsSync(`${databasePath}-wal`)) {
+        renameSync(`${databasePath}-wal`, previousWal);
+        movedWal = true;
+      }
+      if (existsSync(`${databasePath}-shm`)) {
+        renameSync(`${databasePath}-shm`, previousShm);
+        movedShm = true;
+      }
+      this._restorePhase('after-preserve');
+      renameSync(tempPath, databasePath);
+      installed = true;
+      this._restorePhase('after-install');
+      this.closed = false;
+      this.inTransaction = false;
+      this.open();
+      this._restorePhase('after-open');
+      for (const path of [previousPath, previousWal, previousShm]) {
+        try { if (existsSync(path)) unlinkSync(path); } catch { /* retain forensic copy */ }
+      }
+      return { restored: candidate, safetyBackup: safety };
+    } catch (error) {
+      // A failure after a successful open (e.g. the injected after-open phase)
+      // leaves the candidate connection open; close it before touching files.
+      if (this.db !== undefined && !this.closed) {
+        try { this.close(); closed = true; } catch { /* continue to fail closed */ }
+      }
+      // Remove only the staged candidate that was installed at the live path.
+      // The preserved old set is never touched here.
+      if (installed) {
+        try {
+          removeSidecars(databasePath);
+          if (existsSync(databasePath)) unlinkSync(databasePath);
+        } catch { /* rollback below may still fail closed */ }
+      }
+      try {
+        this._restorePhase('before-rollback');
+        if (movedDatabase) {
+          if (existsSync(databasePath)) unlinkSync(databasePath);
+          renameSync(previousPath, databasePath);
+        }
+        if (movedWal) renameSync(previousWal, `${databasePath}-wal`);
+        if (movedShm) renameSync(previousShm, `${databasePath}-shm`);
+        if (closed) {
+          this.closed = false;
+          this.inTransaction = false;
+          this.open();
+        }
+      } catch (rollbackError) {
+        // Preserve the old DB/WAL/SHM set and staged candidate for forensic
+        // recovery. Never delete them to make the error look clean.
+        keepArtifacts = true;
+        throw new StateStorageError('backup restore failed and the original database file set could not be restored; files are preserved', {
+          reason: 'restore_rollback_failed',
+          cause: String(rollbackError?.message ?? rollbackError).slice(0, 300),
+        });
+      }
+      throw new StateStorageError(`backup restore failed; original database file set restored: ${String(error?.message ?? error).slice(0, 300)}`, {
+        reason: 'restore_failed',
+      });
+    } finally {
+      if (!keepArtifacts) {
+        try { if (existsSync(tempPath)) unlinkSync(tempPath); } catch { /* ignore */ }
+      }
+      // On success the old set was removed above. On a successful rollback the
+      // old files were renamed back. On rollback failure keep every artifact.
+    }
+  }
+
   /** @returns {Record<string, unknown>} safe health facts. */
   health() {
     this.assertOpen();
@@ -897,6 +1137,37 @@ export class StateStore {
 
   assertOpen() {
     if (this.closed || this.db === undefined) throw new StateClosedError('State store is closed');
+  }
+}
+
+/**
+ * Validate a backup basename. Restore accepts a name, never an arbitrary path.
+ * @param {unknown} file - candidate basename.
+ * @returns {string} safe basename.
+ */
+function safeBackupName(file) {
+  const value = String(file ?? '');
+  if (!/^state-[A-Za-z0-9._-]+\.sqlite$/.test(value) || value.includes('..')) {
+    throw new StateValidationError('backup must be a generated state-*.sqlite filename');
+  }
+  return value;
+}
+
+function removeSidecars(databasePath) {
+  for (const suffix of ['-wal', '-shm']) {
+    const path = `${databasePath}${suffix}`;
+    if (existsSync(path)) {
+      try { unlinkSync(path); } catch { /* best effort after close */ }
+    }
+  }
+}
+
+function clearRuntimeLease(databasePath) {
+  const db = new DatabaseSync(databasePath);
+  try {
+    db.prepare("DELETE FROM runtime_leases WHERE key = 'writer'").run();
+  } finally {
+    db.close();
   }
 }
 

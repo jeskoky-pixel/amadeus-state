@@ -235,6 +235,9 @@ export function mountHttp(ctx, service) {
                     data: service.auditPage(scope, { limit: pageSize, offset: (page - 1) * pageSize }),
                   });
                 }
+                if (path === '/backups') {
+                  return send(res, 200, { ok: true, data: { backups: service.listBackups() } });
+                }
                 if (path === '/diagnostics') {
                   const health = service.health();
                   let schema = null;
@@ -321,6 +324,15 @@ export function mountHttp(ctx, service) {
                 if (path === '/backup') {
                   if (body.confirm !== 'BACKUP') throw new StateValidationError('explicit BACKUP confirmation is required');
                   return send(res, 200, { ok: true, data: service.backup('manual') });
+                }
+                if (path === '/restore') {
+                  return send(res, 200, {
+                    ok: true,
+                    data: service.restoreBackup({
+                      file: body.file,
+                      confirm: body.confirm,
+                    }),
+                  });
                 }
                 return send(res, 404, { ok: false, error: 'unknown State endpoint' });
               }

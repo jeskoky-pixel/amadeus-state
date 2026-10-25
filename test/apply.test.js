@@ -161,6 +161,50 @@ test('apply mounts tools, context, HTTP, and the host service with live config',
   }
 });
 
+test('apply disposal and re-apply on the same database preserves state for re-enable/reinstall', () => {
+  const temp = tempDir('state-apply-reinstall-');
+  const tools = new Map();
+  const services = {
+    tools: {
+      register(definition) {
+        tools.set(definition.name, definition);
+      },
+      get() {
+        return undefined;
+      },
+      async execute() {
+        throw new Error('not used');
+      },
+    },
+    systemPrompt: { context() { return () => {}; } },
+    webServer: { register() { return () => {}; } },
+    connection: { admit() { return { peer: { principal: { kind: 'owner' } } }; } },
+  };
+  const parsed = Config['~standard'].validate({ databasePath: temp.path });
+  const first = fakeContext(services);
+  let second;
+  try {
+    apply(first.ctx, parsed.value);
+    const view = first.provided.get('amadeusState').getScopedState('session-reinstall');
+    assert.equal(view.state.revision, 1);
+    for (const disposer of first.effects.reverse()) {
+      try { if (typeof disposer === 'function') disposer(); } catch { /* cleanup */ }
+    }
+    second = fakeContext(services);
+    apply(second.ctx, parsed.value);
+    const host = second.provided.get('amadeusState');
+    assert.equal(host.getHealth().state, 'ready');
+    const again = host.getScopedState('session-reinstall');
+    assert.equal(again.scope.id, view.scope.id);
+    assert.equal(again.state.revision, 1);
+  } finally {
+    for (const disposer of (second?.effects ?? []).reverse()) {
+      try { if (typeof disposer === 'function') disposer(); } catch { /* cleanup */ }
+    }
+    temp.cleanup();
+  }
+});
+
 test('an unavailable database yields an observable degraded service instead of a Host crash', () => {
   const temp = tempDir('state-apply-degraded-');
   const blocker = join(temp.dir, 'blocker');

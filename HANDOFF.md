@@ -23,8 +23,9 @@
 - 本地化：`locale/*.json` 顶层 `meta.title`/`meta.description`。
 - 管理 HTTP API：同源、State 标记头、DSH `connection.admit`、owner principal、JSON 校验、无路径/秘密。
 - 可选 Life / Memory 适配：Life 公开 identity/activity 服务；Mneme 原生 `memory_get` 读取引用；5 秒超时与干净降级。没有 Memory 写入方法/设置；自动写入硬禁用。
-- 文档：README、CHANGELOG、普通用户指南、安装、升级、备份/回滚、架构、ADR、发行说明、兼容性、构建/可复现性、locale。
-- 测试：`npm test` 101 项（官方 Schemastery 可用时 101/101；默认环境 100 pass + 1 skip）；`npm run check` 通过；`npm run package` 生成并验证 tarball；`npm run verify:package` 通过。
+- 文档：README、CHANGELOG、普通用户指南、安装、升级、备份/回滚、架构、ADR、发行说明、兼容性、构建/可复现性、性能、locale。
+- 安全备份恢复：诊断页列出 basename、二次确认；Host 做 integrity/schema/表/列预检，自动 `state-before-restore` 安全备份，原子替换 SQLite，失败恢复并重新打开原库。
+- 测试：`npm test` 109 项（官方 Schemastery 可用时 109/109；默认环境 108 pass + 1 skip）；`npm run check` 通过；`npm run package` 生成并验证 tarball；`npm run verify:package` 通过。
 - 设置页 schema：`Config.toJSON()` 使用官方 `{uid,refs}` 信封，所有嵌套 schema 位置为数字 uid；已用官方 Schemastery 3.18.5 + 完整默认 Config 回归。
 - 产品化发行收尾：`engines.dsh` 收紧为 `>=0.2.1-rc.3 <0.3.0`；新增发行说明/兼容/升级/构建文档；`package` 固定 `SOURCE_DATE_EPOCH`/`TZ` 连续两次打包比对 SHA-256，写 `PACKAGE_INFO.json`/`BUILD_INFO.json`，并由 `verify-package.mjs` 逐文件核对当前源码、client bundle、发行文档和禁止内容。
 - Review 3：深色主题 selected/primary 使用显式高对比 accent；兴趣页删除提示只在真实删除后显示；移除 inert `memoryWriteEnabled` 字段/写入路径。
@@ -33,14 +34,14 @@
 ## 验证命令与结果
 
 ```text
-npm test        # 101 tests: 100 pass + 1 official-schema skip by default
-DSH_SCHEMASTER_PATH=<official 3.18.5> npm test  # 101/101 pass
+npm test        # 109 tests: 108 pass + 1 official-schema skip by default
+DSH_SCHEMASTER_PATH=<official 3.18.5> npm test  # 109/109 pass
 npm run check   # build + release checks pass (25 fields)
 npm run package # deterministic two-pack + BUILD_INFO/PACKAGE_INFO + verification
 npm run verify:package
 ```
 
-最终 package 的大小与 SHA-256 以本地生成的 `dist/PACKAGE_INFO.json` 为准；`dist/BUILD_INFO.json` 记录 source/client 哈希；代码或文档变更后需重新运行。当前产品化产物：`dist/amadeus-state-1.0.0.tgz`，57 files，251431 bytes，SHA-256 `df88e747ae72832e72db847022bcffb143f696c475ff6c36fe5cd516dfe4efc9`（联合实机返工后；若后续文件再变动以最新回执为准）。
+最终 package 的大小与 SHA-256 以本地生成的 `dist/PACKAGE_INFO.json` 为准；`dist/BUILD_INFO.json` 记录 source/client 哈希；代码或文档变更后需重新运行。当前产品化产物：`dist/amadeus-state-1.0.0.tgz`，59 files，262012 bytes，SHA-256 `341ec37a611cd59afead38a3cf0467024abe59f9a1057e140970aa92df461947`（最终产品化；若后续文件再变动以最新回执为准）。
 
 ## 已知限制
 

@@ -18,6 +18,7 @@ npm test
 npm run check
 npm run package
 npm run verify:package
+npm run bench
 ```
 
 产物：
@@ -69,6 +70,7 @@ npm run verify:package
 - [ ] 添加/调整/停用/删除兴趣；删除提示不涉及 Memory。
 - [ ] 变化记录分页、来源、信任级别与变化前后正常。
 - [ ] 预览不改变数据库；恢复默认只清配置；重置状态需要确认并保留历史。
+- [ ] 运行诊断能列出备份；恢复按钮二次确认、先做安全备份，成功重新打开；无效备份被拒绝且数据不变。
 - [ ] 模型工具 `state_get`、`state_appraise`、`state_interests`、`state_health` 在真实模型回合可用。
 - [ ] 调整动态上下文注入模式后，下一回合实际上下文变化。
 - [ ] 禁用插件后页面入口撤销、DSH 正常工作、数据不删除。

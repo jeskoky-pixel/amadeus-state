@@ -61,6 +61,23 @@ test('plugin-manager detail card uses the same config form and basic fields', ()
   assert.match(bundle, /detailHealth/);
 });
 
+test('ordinary-user backup restore, guidance, responsive and focus affordances are present', () => {
+  assert.match(bundle, /restoreBackupTitle/);
+  assert.match(bundle, /restoreBackupBody/);
+  assert.match(bundle, /confirmRestore/);
+  assert.match(bundle, /confirm: 'RESTORE'/);
+  assert.match(bundle, /api\('\/restore'/);
+  assert.match(bundle, /restoreBackupHint/);
+  assert.match(bundle, /@media \(max-width:640px\)/);
+  assert.match(bundle, /focus-visible/);
+  assert.match(bundle, /\.tableWrap\{overflow:auto/);
+  assert.match(bundle, /field\.default/);
+  assert.match(bundle, /field\.unit/);
+  assert.match(bundle, /aria-label/);
+  assert.match(bundle, /role: 'alert'/);
+  assert.match(bundle, /disabled/);
+});
+
 test('Memory write is not a user-facing Config field and has no UI toggle', () => {
   assert.equal(CONFIG_FIELDS.some((field) => field.key === 'memoryWriteEnabled'), false);
   assert.equal(bundle.includes('memoryWriteEnabled'), false);

@@ -179,6 +179,16 @@ const DICT = {
     backupConfirmTitle: '创建备份？',
     backupConfirmBody: '在当前数据目录的 backups 子目录创建一致性备份，不会修改状态。',
     backupDone: '备份已创建：',
+    backups: '数据库备份与恢复',
+    noBackups: '暂无备份。先创建一份备份，再从这里选择恢复。',
+    selectBackup: '选择备份',
+    restoreBackup: '从备份恢复',
+    restoreBackupTitle: '从备份恢复数据库？',
+    restoreBackupBody: '会先验证备份完整性、schema 和必需表，创建恢复前安全备份，然后替换当前 State 数据库并重新打开。失败会自动恢复原数据库；只影响 State 数据，不删除 Memory。',
+    restoreBackupHint: '恢复前请确认备份版本与当前插件兼容；成功后页面会重新读取 State 数据。',
+    restoreBackupDone: '已从备份恢复，State 数据库已重新打开。',
+    selectBackupRequired: '请先选择一个备份。',
+    confirmRestore: '确认恢复',
     restoreDefaults: '恢复默认参数',
     restoreConfirmTitle: '恢复默认参数？',
     restoreConfirmBody: '只清除插件配置覆盖并恢复默认值，不会删除状态、兴趣或审计历史。',
@@ -321,6 +331,16 @@ const DICT = {
     backupConfirmTitle: 'Create a backup?',
     backupConfirmBody: 'Creates a consistent backup under the data directory\'s backups folder without changing state.',
     backupDone: 'Backup created: ',
+    backups: 'Database backup and restore',
+    noBackups: 'No backups yet. Create one first, then select it here to restore.',
+    selectBackup: 'Select backup',
+    restoreBackup: 'Restore from backup',
+    restoreBackupTitle: 'Restore database from backup?',
+    restoreBackupBody: 'The backup is checked for integrity, schema, and required tables; a safety backup is made, then the current State database is replaced and reopened. Failure restores the original; only State data is affected, never Memory.',
+    restoreBackupHint: 'Confirm the backup version matches this plugin. After success the page reloads State data.',
+    restoreBackupDone: 'Restored from backup; the State database was reopened.',
+    selectBackupRequired: 'Select a backup first.',
+    confirmRestore: 'Restore',
     restoreDefaults: 'Restore default parameters',
     restoreConfirmTitle: 'Restore default parameters?',
     restoreConfirmBody: 'Clears plugin configuration overrides and restores defaults only; state, interests, and audit history are kept.',
@@ -585,7 +605,9 @@ function FieldRow({ field, draft, snapshot, errors, disabled, onChange, t, lang 
       { className: 'label' },
       help.label,
       h('small', null, help.help),
-      h('small', null, field.restart ? t('restart') : t('live')),
+      h('small', null, (field.type === 'number'
+        ? t('range') + ' ' + field.min + '–' + field.max + (field.unit ? ' ' + field.unit : '') + ' · '
+        : '') + t('default') + ' ' + String(field.default) + ' · ' + (field.restart ? t('restart') : t('live'))),
     ),
     h('div', { className: 'control' }, control),
   );
@@ -610,6 +632,8 @@ function Panel({ ctx }) {
   const [page, setPage] = React.useState(1);
   const [status, setStatus] = React.useState(null);
   const [diagnostics, setDiagnostics] = React.useState(null);
+  const [backups, setBackups] = React.useState([]);
+  const [selectedBackup, setSelectedBackup] = React.useState('');
   const [message, setMessage] = React.useState('');
   const [error, setError] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -712,7 +736,11 @@ function Panel({ ctx }) {
   const loadDiagnostics = React.useCallback(async () => {
     try {
       const data = await api('/diagnostics');
-      if (alive.current) setDiagnostics(data);
+      if (!alive.current) return;
+      setDiagnostics(data);
+      const list = Array.isArray(data.backups) ? data.backups : [];
+      setBackups(list);
+      setSelectedBackup((current) => (list.some((item) => item.file === current) ? current : (list[0]?.file ?? '')));
     } catch (e) {
       if (alive.current) showError(t('requestFailed') + e.message);
     }
@@ -938,6 +966,38 @@ function Panel({ ctx }) {
         try {
           const data = await api('/backup', { method: 'POST', body: { confirm: 'BACKUP' } });
           showMessage(t('backupDone') + (data.file || ''));
+          await loadDiagnostics();
+        } catch (e) {
+          showError(e.message);
+        } finally {
+          setBusy(false);
+          setConfirm(null);
+        }
+      },
+    });
+  };
+
+  const doRestore = () => {
+    if (!selectedBackup) {
+      showError(t('selectBackupRequired'));
+      return;
+    }
+    const selected = backups.find((item) => item.file === selectedBackup);
+    setConfirm({
+      title: t('restoreBackupTitle'),
+      body: t('restoreBackupBody') + (selected ? `\n\n${selected.file}` : ''),
+      confirmLabel: t('confirmRestore'),
+      danger: true,
+      action: async () => {
+        setBusy(true);
+        try {
+          await api('/restore', {
+            method: 'POST',
+            body: { file: selectedBackup, confirm: 'RESTORE' },
+          });
+          showMessage(t('restoreBackupDone'));
+          setSelectedBackup('');
+          await refreshAll();
         } catch (e) {
           showError(e.message);
         } finally {
@@ -1226,7 +1286,7 @@ function Panel({ ctx }) {
           'div',
           { className: 'stack' },
           h('label', null, t('name'), h('input', { type: 'text', value: newInterest.name, maxLength: 60, disabled, onChange: (event) => setNewInterest({ ...newInterest, name: event.target.value }) })),
-          h('label', null, t('manualBaseline'), h('input', { type: 'number', min: 0, max: 100, value: newInterest.baseline, disabled, onChange: (event) => setNewInterest({ ...newInterest, baseline: Number(event.target.value) }) })),
+          h('label', null, t('manualBaseline'), h('input', { type: 'number', min: 0, max: 100, value: newInterest.baseline, disabled, onChange: (event) => setNewInterest({ ...newInterest, baseline: Number(event.target.value) }) }), h('small', null, t('range') + ' 0–100 · ' + t('default') + ' 60')),
           h('label', null, t('aliases'), h('input', { type: 'text', value: newInterest.aliases, disabled, onChange: (event) => setNewInterest({ ...newInterest, aliases: event.target.value }) })),
           h('div', { className: 'actions' }, h('button', { type: 'button', className: 'primary', disabled: disabled || !newInterest.name.trim(), onClick: addInterest }, t('add'))),
         ),
@@ -1404,6 +1464,30 @@ function Panel({ ctx }) {
           h('button', { type: 'button', onClick: loadDiagnostics, disabled: busy }, t('refresh')),
           h('button', { type: 'button', onClick: doBackup, disabled: busy }, t('backup')),
         ),
+      ),
+      h(
+        'div',
+        { className: 'panel' },
+        h('h3', null, t('backups')),
+        backups.length === 0
+          ? h('p', null, t('noBackups'))
+          : h(
+              'div',
+              { className: 'actions' },
+              h('label', null, t('selectBackup'),
+                h(
+                  'select',
+                  {
+                    value: selectedBackup,
+                    disabled: busy,
+                    onChange: (event) => setSelectedBackup(event.target.value),
+                  },
+                  ...backups.map((item) => h('option', { key: item.file, value: item.file }, item.file + ' · ' + (item.bytes ?? 0) + ' B · ' + (item.createdAt ?? ''))),
+                ),
+              ),
+              h('button', { type: 'button', className: 'danger', onClick: doRestore, disabled: busy || !selectedBackup }, t('restoreBackup')),
+            ),
+        h('small', null, t('restoreBackupHint')),
       ),
     );
   }
@@ -1676,7 +1760,13 @@ function DetailSection({ ctx, subject }) {
         h(
           'div',
           { className: 'field', key: field.key },
-          h('div', { className: 'label' }, (field[lang] || field.zh).label, h('small', null, (field[lang] || field.zh).help)),
+          h('div', { className: 'label' },
+            (field[lang] || field.zh).label,
+            h('small', null, (field[lang] || field.zh).help),
+            h('small', null, (field.type === 'number'
+              ? t('range') + ' ' + field.min + '–' + field.max + (field.unit ? ' ' + field.unit : '') + ' · '
+              : '') + t('default') + ' ' + String(field.default) + ' · ' + (field.restart ? t('restart') : t('live'))),
+          ),
           h('div', { className: 'control' }, fieldControl(field)),
         ),
       ),

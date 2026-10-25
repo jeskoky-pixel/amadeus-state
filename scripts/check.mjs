@@ -41,6 +41,7 @@ for (const doc of [
   'docs/COMPATIBILITY.md',
   'docs/UPGRADE.md',
   'docs/BUILD.md',
+  'docs/PERFORMANCE.md',
   'docs/verification/STATE_V1_ACCEPTANCE_2026-10-25.md',
 ]) {
   check(existsSync(join(root, doc)), `${doc} must exist`);
@@ -77,7 +78,10 @@ check(client.includes('settings.section'), 'client must register settings.sectio
 check(client.includes('plugins.detail.section'), 'client must register plugins.detail.section');
 check(client.includes('configForms'), 'client must use the authoritative config form');
 check(client.includes('amadeus-state-basic-config'), 'client must register the Plugin Manager basic config card');
+check(client.includes('restoreBackup'), 'client must expose the safe backup restore control');
+check(client.includes("api('/restore'"), 'client must call the authenticated restore endpoint');
 check(!client.includes('memoryWriteEnabled'), 'client must not expose a Memory write setting');
+check(packageJson.scripts?.bench === 'node scripts/bench.mjs', 'package must expose the isolated benchmark script');
 for (const field of fields) {
   check(client.includes(`"${field.key}"`), `client metadata missing field ${field.key}`);
 }

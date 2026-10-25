@@ -80,6 +80,7 @@ npm run build       # build lib/client.js lazy-CJS bundle
 npm run check       # build + release checks
 npm run package     # deterministic two-pack + BUILD_INFO + PACKAGE_INFO
 npm run verify:package  # verify tarball vs current worktree/content policy
+npm run bench       # isolated read/write/context overhead sample
 ```
 
 本轮产品化不包含 Git 提交、安装、公开发布或生产 Profile 修改；真实 Desktop 最终安装/UI/模型调用验收由 Codex 执行。详细风险和安装清单见 [发行说明](docs/RELEASE_NOTES.md) 与 [State v1 验收报告](docs/verification/STATE_V1_ACCEPTANCE_2026-10-25.md)。
@@ -93,6 +94,7 @@ npm run verify:package  # verify tarball vs current worktree/content policy
 - [发行说明](docs/RELEASE_NOTES.md) / [变更记录](CHANGELOG.md)
 - [兼容性](docs/COMPATIBILITY.md)
 - [构建与可复现性](docs/BUILD.md)
+- [运行与 Token 开销](docs/PERFORMANCE.md)
 - [架构与信任边界](docs/ARCHITECTURE.md)
 - [产品架构决策](docs/ADR-001-state-v1.md)
 - [State v1 验收报告](docs/verification/STATE_V1_ACCEPTANCE_2026-10-25.md)

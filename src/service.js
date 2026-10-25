@@ -988,6 +988,38 @@ export class StateService {
     return this.store.backup(reason);
   }
 
+  /** @returns {{file: string, bytes: number, createdAt: string}[]} safe backups. */
+  listBackups() {
+    return this.store.listBackups();
+  }
+
+  /**
+   * Restore one preflighted backup over the live database. A safety backup is
+   * created first; a failure restores and reopens the original file.
+   * @param {{file?: string, confirm?: string}} input - explicit restore.
+   * @returns {Record<string, any>} restored metadata and fresh health.
+   */
+  restoreBackup(input = {}) {
+    if (String(input.confirm ?? '') !== 'RESTORE') {
+      throw new StateValidationError('explicit RESTORE confirmation is required');
+    }
+    const result = this.store.restoreBackup(input.file);
+    this.lastError = null;
+    this.lastIntegrityError = null;
+    this.lastEventAt = null;
+    try {
+      for (const row of this.store.listScopes()) {
+        const event = this.store.lastEvent(row.id);
+        if (event && (this.lastEventAt === null || event.recordedAt > this.lastEventAt)) {
+          this.lastEventAt = event.recordedAt;
+        }
+      }
+    } catch {
+      // Health still reports the store; a scan failure is not a restore failure.
+    }
+    return { ...result, health: this.health(), backups: this.store.listBackups() };
+  }
+
   /**
    * Safe diagnostics.  No paths, credentials, raw event reasons, or private
    * evidence are included.
@@ -1004,10 +1036,16 @@ export class StateService {
     const life = this.getLife();
     const memory = this.memory;
     let memoryAvailable = false;
+    let backups = [];
     try {
       memoryAvailable = Boolean(memory && typeof memory.available === 'function' && memory.available());
     } catch {
       memoryAvailable = false;
+    }
+    try {
+      backups = this.store.listBackups();
+    } catch {
+      backups = [];
     }
     return {
       version: this.version,
@@ -1015,6 +1053,7 @@ export class StateService {
       startedAt: this.startedAt,
       database: storeHealth,
       schemaVersion: storeHealth.schemaVersion ?? null,
+      backups,
       lastEventAt: this.lastEventAt,
       lastError: this.lastError,
       contextInjectionMode: cfg.contextInjectionMode,

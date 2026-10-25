@@ -117,6 +117,7 @@ export function verifyPackage({ root: repositoryRoot = root } = {}) {
     'package/docs/COMPATIBILITY.md',
     'package/docs/UPGRADE.md',
     'package/docs/BUILD.md',
+    'package/docs/PERFORMANCE.md',
     'package/docs/verification/STATE_V1_ACCEPTANCE_2026-10-25.md',
   ];
   for (const path of required) {

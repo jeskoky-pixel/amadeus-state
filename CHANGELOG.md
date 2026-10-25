@@ -32,9 +32,18 @@ pass.
 - Authenticated owner-only management HTTP API; browser never reads SQLite.
 - Release tooling: source/client/tarball consistency verification, Build Info,
   two-pack reproducibility check, SHA-256 package receipt and release docs.
+- Safe in-process backup restore from the diagnostics page: basename-only
+  selectors, integrity/schema/table preflight, automatic safety backup, atomic
+  replace, data-preserving rollback and automatic reopen.
+- Isolated performance/token measurement (`npm run bench`) and user-facing
+  runtime overhead documentation.
 
 ### Fixed
 
+- Backup restore now preserves the live `state.sqlite` + WAL/SHM file set under a
+  unique old-set name before installing the candidate. It never unlinks live
+  sidecars before rollback is possible; injected failures at every replacement
+  phase restore the old set or fail closed with forensic artifacts.
 - `settings.section` and `plugins.detail.section` now return their registration
   disposer to `configForms.whileServed` and guard against repeated mirror syncs.
   Disable/re-enable, HMR, namespace withdrawal and re-serve release the old slot
