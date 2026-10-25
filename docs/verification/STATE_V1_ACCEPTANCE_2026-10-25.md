@@ -16,6 +16,7 @@
 | 状态及兴趣 | 三项状态、基准、说明和审计分页显示；合成兴趣添加、调整及重启后保留。预览前后 State revision 均为 `2`，未落库。 |
 | 配置与重置 | GUI 草稿未提前改变 Host。重置的“取消”使 revision 保持 `3`；二次确认后变为 `4`，审计历史保留。恢复默认后敏感度为 `1`，Memory 引用联动回到默认关闭。 |
 | 真实模型工具 | 官方 DeepSeek Flash 在隔离 Creator 会话调用了 `state_health`、`state_get`、`state_appraise`、`state_interests`；State 工具输出与合成审计相符。 |
+| 动态上下文 | 在隔离新会话中，先调用 `state_get` 建立本地私有 scope，再由管理员 API 写入仅用于测试的独特兴趣。GUI 把注入模式保存为 `state_interests` 后，下一真实模型回合明确禁止工具和文件读取，模型直接答出该兴趣 `合成荧蓝天体20261025（活跃 0）`；该名称只来自当前 scope 的动态上下文。测试后 GUI 已恢复 `brief`。 |
 | Life | 合成完成活动首次接受，重复回执只返回 `duplicate:true`，未知活动拒绝；Life 的真实 Host 服务负责活动验证。 |
 | Memory | 官方 Plugin Manager 安装 Mneme `0.9.4` 到同一隔离实例。模型用 `memory_save`/`memory_get` 创建并读取合成记忆。开启 State Memory 引用后，模型对同一 ID 首次与重复调用 `state_appraise`，State 仅产生一条 `memory_reference` 审计事件，revision 从 `2` 到 `3`；不存在的 ID 未新增事件。恢复默认后联动重新关闭。 |
 | 权限 | 跨站写入 403、缺少 `x-amadeus-state` 的写入 403、无认证读取 401。单元测试覆盖非 owner、错误 scope、撤销、模型伪造来源及重复事件。 |
@@ -29,5 +30,5 @@
 ## 仍需单独确认
 
 - 日常 DSH 本体验收使用的是首次交付包（SHA-256 `e1f06ddb8796c8c674b3b003f179f468b7cc42bdadb113c72668546397e8fdf6`）。本报告文本更新后重新打包会改变 tarball 哈希，但代码和客户端 bundle 未变；后续最终包应在隔离实例再次加载检查。
-- `contextInjectionMode` 保存、Context 生成及权限在测试中覆盖，真实模型回合的完整系统 Prompt 不会暴露给验收工具，因此无法以模型口头描述独立证明上下文原文。可通过下一回合行为观察，但不能把它当作原文取证。
+- 动态上下文的真实模型回合已验证“状态与兴趣”模式能传递当前 scope 的独特兴趣；完整系统 Prompt 原文未从 DSH 导出，因此此项证据是行为结果与 Host/GUI 配置的联合验证，而不是原文记录。
 - 当前仓库 `UNLICENSED`，所有者尚未选定开源许可证；不得视作允许第三方再分发。
