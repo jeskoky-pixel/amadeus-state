@@ -20,6 +20,7 @@
 | Memory | 官方 Plugin Manager 安装 Mneme `0.9.4` 到同一隔离实例。模型用 `memory_save`/`memory_get` 创建并读取合成记忆。开启 State Memory 引用后，模型对同一 ID 首次与重复调用 `state_appraise`，State 仅产生一条 `memory_reference` 审计事件，revision 从 `2` 到 `3`；不存在的 ID 未新增事件。恢复默认后联动重新关闭。 |
 | 权限 | 跨站写入 403、缺少 `x-amadeus-state` 的写入 403、无认证读取 401。单元测试覆盖非 owner、错误 scope、撤销、模型伪造来源及重复事件。 |
 | 持久化与停用 | 硬重启前后 scope、revision、兴趣 ID 和事件 ID 一致；SQLite 冷备份 `integrity_check=ok`。禁用 State 后导航入口消失，重新启用后数据保留。 |
+| 日常 DSH 本体验收与回滚 | 备份原有 Profile 后重启日常 Desktop；官方 Plugin Manager 从 State tgz 安装成功。Host 返回 `ready`、版本 `1.0.0`，原生设置页打开并读到默认敏感度 `1`，安装期间未产生用户 State scope。随后通过 Plugin Manager 卸载；State API 为 404、设置入口消失、日常 Desktop 继续运行。`package.json`、`pnpm-lock.yaml`、`cordis.yml`、`cordis.patch.yml` 与安装前备份逐项 SHA-256 一致。测试新建的 State 数据另存本机备份，原有 Life/Memory/QQ Bridge 数据未改动。 |
 
 ## 性能与隐私边界
 
@@ -27,6 +28,6 @@
 
 ## 仍需单独确认
 
-- 生产 DSH Profile 的安装、真实 GUI 与回滚测试需在保存原 Profile 和插件数据后执行；本报告只证明隔离实例。
+- 日常 DSH 本体验收使用的是首次交付包（SHA-256 `e1f06ddb8796c8c674b3b003f179f468b7cc42bdadb113c72668546397e8fdf6`）。本报告文本更新后重新打包会改变 tarball 哈希，但代码和客户端 bundle 未变；后续最终包应在隔离实例再次加载检查。
 - `contextInjectionMode` 保存、Context 生成及权限在测试中覆盖，真实模型回合的完整系统 Prompt 不会暴露给验收工具，因此无法以模型口头描述独立证明上下文原文。可通过下一回合行为观察，但不能把它当作原文取证。
 - 当前仓库 `UNLICENSED`，所有者尚未选定开源许可证；不得视作允许第三方再分发。
