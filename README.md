@@ -2,7 +2,7 @@
 
 Amadeus State 是独立的 DeepSeek Harness（DSH）Cordis 插件，为 Amadeus 提供持续、可解释、可持久化的 **Mood / Energy / Curiosity** 状态与兴趣演化，并在 DSH 设置窗口中提供原生 **Amadeus 状态** 页面。
 
-> 当前为 1.0.0 候选版，代码在 [PR #1](https://github.com/jeskoky-pixel/amadeus-state/pull/1) 审阅中。尚未公开发行或部署到生产 DSH。
+> 1.0.0 已通过 [PR #1](https://github.com/jeskoky-pixel/amadeus-state/pull/1) 合并到 `main`，并完成四插件同 Profile 的[隔离联合验收](https://github.com/jeskoky-pixel/Amadeus-dsh/blob/main/docs/verification/AMADEUS_V1_FOUR_PLUGIN_ACCEPTANCE.md)。尚未公开发行或部署到生产 DSH。
 
 ## 日常使用
 
@@ -45,7 +45,7 @@ npm run verify:package
 
 `dist/PACKAGE_INFO.json` 记录 tarball 实际文件列表、大小、SHA-256 与可复现标记；`dist/BUILD_INFO.json` 记录 client/source 哈希和构建来源。`npm run package` 会连续打包两次并比较哈希，再执行包内容一致性验证。然后在隔离 DSH Desktop 的 **设置 → 插件** 中通过 Plugin Manager 安装该 tarball 或本地 `link:` 包。完整步骤、升级、验证清单与回滚见 [docs/INSTALL.md](docs/INSTALL.md)、[docs/UPGRADE.md](docs/UPGRADE.md)；隔离实机结果与设置截图见 [State v1 验收报告](docs/verification/STATE_V1_ACCEPTANCE_2026-10-25.md)。
 
-内部正式版本为 **1.0.0（2026-10-25）**；未进行 npm 发布、GitHub Release、PR 合并或生产部署。发行说明与兼容性见 [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md)、[docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)。
+内部正式版本为 **1.0.0（2026-10-25）**，已合并到 `main`；未进行 npm 发布、GitHub Release 或生产部署。发行说明与兼容性见 [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md)、[docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)。
 
 ## 设置入口
 
@@ -91,7 +91,7 @@ npm run verify:package  # verify tarball vs current worktree/content policy
 npm run bench       # isolated read/write/context overhead sample
 ```
 
-本轮产品化不包含 Git 提交、安装、公开发布或生产 Profile 修改；真实 Desktop 最终安装/UI/模型调用验收由 Codex 执行。详细风险和安装清单见 [发行说明](docs/RELEASE_NOTES.md) 与 [State v1 验收报告](docs/verification/STATE_V1_ACCEPTANCE_2026-10-25.md)。
+代码已合并，且最终包已在四插件隔离 Desktop Profile 中安装并打开设置页；State 的独立 Host/模型调用证据见 [State v1 验收报告](docs/verification/STATE_V1_ACCEPTANCE_2026-10-25.md)。生产 Profile 未修改。详细风险和安装清单见 [发行说明](docs/RELEASE_NOTES.md)。
 
 ## 文档
 
