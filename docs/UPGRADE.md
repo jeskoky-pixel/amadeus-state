@@ -1,6 +1,22 @@
 # 升级与回滚
 
-State 的数据目录独立于其他插件；升级/回滚只替换插件包，不自动清空或迁移数据。当前正式版本为 `1.0.0`、SQLite schema `1`。
+State 的数据目录独立于其他插件；升级/回滚只替换插件包，不自动清空或迁移数据。当前正式版本为 `1.1.0`、SQLite schema `2`。v1.0 的私有 Scope、事件和审计保留，不会自动合并到工作区主状态。
+
+## v1.0 → v1.1 数据迁移
+
+1. 首次用 1.1.0 打开 v1 数据库时，先做 `integrity_check`，然后 `VACUUM INTO` 创建 `backups/state-before-v2-migration-*.sqlite` 一致性快照并验证。
+2. 在单个 `BEGIN IMMEDIATE` 事务中新增 `scopes.scope_kind`、`scopes.workspace_id`、`session_rules`、`migration_log` 与索引，并写入 `migration_log` 与 `schema_version=2`。
+3. 事务内比较迁移前后 scopes/events/interests 行数并做 `integrity_check`。任何一步失败都 `ROLLBACK`，v1 文件保持不变；插件拒绝使用而不是部分升级。
+4. 迁移只增加结构，不复制、不合并、不删除旧 Scope 或事件。工作区主状态在显式绑定后才创建。
+5. 旧 v1 备份仍可由 1.1.0 preflight；恢复时会先替换 v1 文件，再在重新打开时执行同一迁移。若希望回到 v1.0，安装旧版并恢复迁移前快照。
+
+## 绑定工作区（v1.1）
+
+1. 打开 **Amadeus 状态 → 会话规则**。
+2. 选择一个 DSH Workspace 并确认绑定；绑定保存稳定 Workspace ID。
+3. 绑定后工作区成员默认共享主状态；打开总览确认主状态可读。
+4. 如需从旧私有状态过渡，旧 Scope 仍保留；v1.1 **不会**自动汇总到主状态。
+5. 解绑或换绑需要明确确认；旧工作区数据保留，但不再作为当前主状态生效。
 
 ## 升级前
 

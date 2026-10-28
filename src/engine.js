@@ -156,11 +156,15 @@ export function applyEvent(state, cfg, event) {
     : source === 'memory'
       ? 0.55
       : 0.5;
+  // Host callers may request a stricter per-event weight (for example the
+  // per-Session ceiling on a shared Workspace state).  It can only reduce an
+  // effect, never amplify one.
+  const scale = clamp(Number(event.scale ?? 1), 0, 1);
 
   const raw = {
-    mood: base.mood * cfg.eventSensitivity * trustFactor + valence * 4 * intensity * trustFactor,
-    energy: base.energy * cfg.eventSensitivity * trustFactor - intensity * 1.5 * trustFactor,
-    curiosity: base.curiosity * cfg.eventSensitivity * trustFactor + curiosityHint * 3 * intensity * trustFactor,
+    mood: (base.mood * cfg.eventSensitivity * trustFactor + valence * 4 * intensity * trustFactor) * scale,
+    energy: (base.energy * cfg.eventSensitivity * trustFactor - intensity * 1.5 * trustFactor) * scale,
+    curiosity: (base.curiosity * cfg.eventSensitivity * trustFactor + curiosityHint * 3 * intensity * trustFactor) * scale,
   };
 
   const deltas = {};

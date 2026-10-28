@@ -22,7 +22,7 @@ const EVENT_TYPES = [
 ];
 
 const CSS = `
-[data-amadeus-state]{--am-state-accent:#2f5bea;--am-state-accent-strong:#2447c7;--am-state-on-accent:#ffffff;box-sizing:border-box;max-width:100%;min-width:0;color:var(--dsw-alias-label-primary,#1f2329);font-size:13px;line-height:1.65;padding:0 0 24px}
+[data-amadeus-state]{--am-state-accent:#2f5bea;--am-state-accent-strong:#2447c7;--am-state-on-accent:#ffffff;box-sizing:border-box;max-width:100%;min-width:0;color:var(--dsw-alias-label-primary,#1f2329);font-size:13px;line-height:1.65;padding:0 0 24px;container-type:inline-size;container-name:amadeus-state-console}
 [data-amadeus-state] *{box-sizing:border-box}
 [data-amadeus-state] h2{margin:0;font-size:22px;line-height:1.3;font-weight:600;letter-spacing:-.2px}
 [data-amadeus-state] h3{margin:0 0 8px;font-size:15px;line-height:1.4;font-weight:600}
@@ -48,6 +48,63 @@ const CSS = `
 [data-amadeus-state] .tabs button{border-radius:999px;padding:5px 12px}
 [data-amadeus-state] .tabs button[aria-selected=true]{background:var(--am-state-accent);border-color:var(--am-state-accent);color:var(--am-state-on-accent)}
 [data-amadeus-state] .tabs button[aria-selected=true]:hover:not(:disabled){background:var(--am-state-accent-strong);border-color:var(--am-state-accent-strong);color:var(--am-state-on-accent)}
+[data-amadeus-state] .shell{display:grid;grid-template-columns:208px minmax(0,1fr);gap:22px;align-items:start}
+[data-amadeus-state] .side{position:sticky;top:12px;border:1px solid var(--dsw-alias-border-secondary,#8c8c8c33);border-radius:16px;padding:16px 12px;background:var(--dsw-alias-bg-layer-1,#ffffff08)}
+[data-amadeus-state] .brand{display:flex;gap:10px;align-items:center;padding:0 4px 14px;border-bottom:1px solid var(--dsw-alias-border-secondary,#8c8c8c28);margin-bottom:14px}
+[data-amadeus-state] .brandMark{display:grid;place-items:center;width:34px;height:34px;border-radius:11px;background:linear-gradient(145deg,#dbe7ff,#eef3ff);color:var(--am-state-accent);font-weight:700}
+[data-amadeus-state] .brand strong{display:block;line-height:1.25}
+[data-amadeus-state] .brand small{padding-top:2px}
+[data-amadeus-state] .sideTag{display:inline-flex;margin:0 4px 12px;padding:3px 8px;border-radius:999px;background:#2f5bea12;color:var(--am-state-accent);font-size:11px;font-weight:600}
+[data-amadeus-state] .sideLabel{padding:10px 8px 5px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:.5}
+[data-amadeus-state] .navList{display:flex;flex-direction:column;gap:2px}
+[data-amadeus-state] .navButton{display:flex;gap:9px;align-items:center;text-align:left;border:0;background:transparent;padding:9px 10px;border-radius:10px;color:inherit;font-weight:500}
+[data-amadeus-state] .navButton .navIcon{width:18px;text-align:center;opacity:.65;font-size:13px}
+[data-amadeus-state] .navButton[aria-selected=true]{background:#2f5bea12;color:var(--am-state-accent);font-weight:600}
+[data-amadeus-state] .navButton[aria-selected=true] .navIcon{opacity:1}
+[data-amadeus-state] .navButton:hover:not(:disabled){background:var(--dsw-alias-bg-layer-2,#8c8c8c14)}
+[data-amadeus-state] .contentArea{min-width:0}
+[data-amadeus-state] .pageHead{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap;margin:0 0 4px}
+[data-amadeus-state] .pageHead h2{font-size:28px;letter-spacing:-.5px}
+[data-amadeus-state] .eyebrow{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--am-state-accent);font-weight:700;margin-bottom:4px}
+[data-amadeus-state] .workspaceBanner{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border:1px solid var(--dsw-alias-border-secondary,#8c8c8c33);border-radius:14px;padding:13px 15px;margin:12px 0;background:var(--dsw-alias-bg-layer-1,#ffffff08)}
+[data-amadeus-state] .workspaceBanner strong{display:block}
+[data-amadeus-state] .modeGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}
+[data-amadeus-state] .modeCard{border:1px solid var(--dsw-alias-border-secondary,#8c8c8c38);border-radius:11px;padding:10px 11px;background:var(--dsw-alias-bg-layer-1,#ffffff06)}
+[data-amadeus-state] .modeCard.active{border-color:var(--am-state-accent);background:#2f5bea0d}
+[data-amadeus-state] .modeCard strong{display:block;margin-bottom:2px}
+[data-amadeus-state] .sessionRow{display:grid;grid-template-columns:minmax(0,1fr) 150px auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--dsw-alias-border-secondary,#8c8c8c24)}
+[data-amadeus-state] .sessionRow:last-child{border-bottom:0}
+[data-amadeus-state] .mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;overflow-wrap:anywhere}
+[data-amadeus-state] .hintCard{border:1px dashed var(--dsw-alias-border-secondary,#8c8c8c55);border-radius:11px;padding:10px 12px;background:#d99a2b0d;margin:10px 0}
+[data-amadeus-state] .dataTable{min-width:460px}
+@media (max-width:900px){[data-amadeus-state] .shell{grid-template-columns:1fr}[data-amadeus-state] .side{position:static}[data-amadeus-state] .navList{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}[data-amadeus-state] .sideLabel,.dataTable{display:none}}
+@container amadeus-state-console (max-width:820px){
+  [data-amadeus-state] .shell{grid-template-columns:1fr;gap:14px}
+  [data-amadeus-state] .side{position:static}
+  [data-amadeus-state] .navList{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:4px}
+  [data-amadeus-state] .sideLabel{display:none}
+  [data-amadeus-state] .brand{padding-bottom:10px;margin-bottom:10px}
+  [data-amadeus-state] .sessionRow{grid-template-columns:minmax(0,1fr) 150px;align-items:start}
+  [data-amadeus-state] .sessionRow>.actions{grid-column:1 / -1;justify-content:flex-end}
+}
+@container amadeus-state-console (max-width:640px){
+  [data-amadeus-state] .field{grid-template-columns:1fr;gap:5px}
+  [data-amadeus-state] .interestRow{grid-template-columns:1fr 1fr;gap:6px}
+  [data-amadeus-state] .interestRow .interestActions{grid-column:1 / -1}
+  [data-amadeus-state] .topbar{align-items:stretch}
+  [data-amadeus-state] .modeGrid{grid-template-columns:1fr}
+  [data-amadeus-state] .sessionRow{grid-template-columns:1fr}
+  [data-amadeus-state] .sessionRow>.actions{grid-column:auto}
+  [data-amadeus-state] .pageHead h2{font-size:24px}
+}
+@media (max-width:640px){
+  [data-amadeus-state] .field{grid-template-columns:1fr;gap:5px}
+  [data-amadeus-state] .interestRow{grid-template-columns:1fr 1fr;gap:6px}
+  [data-amadeus-state] .interestRow .interestActions{grid-column:1 / -1}
+  [data-amadeus-state] .topbar{align-items:stretch}
+  [data-amadeus-state] .modeGrid{grid-template-columns:1fr}
+  [data-amadeus-state] .sessionRow{grid-template-columns:1fr}
+}
 [data-amadeus-state] .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:10px 0 16px}
 [data-amadeus-state] .card{border:1px solid var(--dsw-alias-border-secondary,#8c8c8c40);border-radius:12px;padding:13px;background:var(--dsw-alias-bg-layer-1,#ffffff08);min-width:0}
 [data-amadeus-state] .card .value{font-size:26px;font-weight:600;line-height:1.2;margin:2px 0}
@@ -127,12 +184,15 @@ const DICT = {
     life: 'Life 绑定',
     authorized: '授权有效',
     unauthorized: '授权无效',
-    overview: '状态总览',
-    settings: '常用设置',
+    overview: '总览',
+    settings: '状态演化',
+    context: '上下文与模型工具',
+    rules: '会话规则',
+    data: '数据与诊断',
     interests: '兴趣管理',
-    audit: '变化记录',
+    audit: '事件与审计',
     advanced: '高级设置',
-    diagnostics: '运行诊断',
+    diagnostics: '诊断',
     mood: '心情',
     energy: '精力',
     curiosity: '好奇心',
@@ -231,6 +291,64 @@ const DICT = {
     requestFailed: '请求失败：',
     noPermission: '只有已认证的 DSH 所有者可以管理 State。',
     scopes: '状态场景',
+    workspace: '工作区',
+    noWorkspace: '未绑定工作区',
+    bindWorkspace: '绑定工作区',
+    unbindWorkspace: '解除绑定',
+    workspaceBound: '已绑定工作区',
+    workspaceUnbound: '未绑定（保持 v1 私有模式）',
+    workspaceMissing: '工作区已失效',
+    workspaceRegistryUnavailable: 'workspaceRegistry 不可用',
+    workspacePick: '选择一个 DSH Workspace',
+    workspaceHint: '使用官方 DSH workspaceRegistry 的稳定 ID 与实时 sessionIds；显示名称和路径不参与身份判断。',
+    workspaceRebind: '绑定到其他工作区？',
+    workspaceRebindBody: '这会切换工作区主状态；旧工作区的状态、规则与审计原样保留，不会合并。',
+    unbindTitle: '解除工作区绑定？',
+    unbindBody: '解除后回到 v1 的每会话私有状态；旧数据、规则和审计不会被删除，也不会自动合并。',
+    workspaceDefaultMode: '默认会话策略',
+    workspaceDefaultHint: '工作区成员默认共享主状态；可在下方为单个会话设置例外。',
+    workspaceMain: '工作区共享主状态',
+    workspaceLegacy: '旧私有 Scope 与审计被保留，不会自动汇总。',
+    workspaceNoBinding: '绑定工作区后，工作区内的合法会话共享一份主状态。',
+    sessionRules: '会话规则',
+    sessionRulesHint: '规则只接受稳定 Session ID，并从实时工作区成员中验证。撤权后下一次工具、注入或事件立即生效。',
+    session: '会话',
+    mode: '模式',
+    modeShared: '共享主状态',
+    modeReadOnly: '只读共享',
+    modeIsolated: '独立状态',
+    modeDisabled: '完全停用',
+    modeSharedHelp: '读取主状态；本会话的合法事件可小幅影响全局。',
+    modeReadOnlyHelp: '读取主状态，但不会修改它。适合高频群聊和观察。',
+    modeIsolatedHelp: '使用本会话独立的状态和兴趣，不读写主状态。',
+    modeDisabledHelp: '不注入、不处理事件、不开放有效模型读写；数据保留。',
+    saveRule: '应用规则',
+    clearRule: '恢复默认',
+    ruleSaved: '会话规则已保存，立即生效。',
+    ruleCleared: '已恢复工作区默认策略。',
+    archivedSession: '已归档',
+    noSessions: '工作区没有可管理的会话。',
+    qqSceneUnavailable: 'QQ 群号/私聊号规则未实现：当前 DSH 没有可公开验证的 Scene 映射。仅接受稳定 Session ID，避免按显示名称授权。',
+    noExtraModel: '未实现额外模型评价；不会每轮另开 LLM。',
+    autoEvolution: '回合后自动演化',
+    autoEvolutionHelp: '只处理已完成的真实模型回合，并使用稳定 Session/turn/seq 去重与限流。',
+    injectionLevel: '注入等级',
+    injectionBrief: '简短',
+    injectionDetailed: '详细',
+    toolStatus: '模型工具状态',
+    toolGet: 'state_get',
+    toolAppraise: 'state_appraise（可选低信任）',
+    toolInterests: 'state_interests',
+    toolHealth: 'state_health',
+    toolDisabledNote: '完全停用模式下，模型工具不返回有效状态。',
+    dataHint: '数据库、迁移、备份与诊断。所有恢复仍需二次确认。',
+    migration: 'Schema 迁移',
+    migrationNone: '没有迁移记录。',
+    migrationBackup: '迁移前备份',
+    storage: '本地存储',
+    legacyPreserved: '旧 v1 私有 Scope 与审计保留；不会自动合并到工作区主状态。',
+    contextPageHint: '每次真正组装模型上下文时读取最新状态；不注入完整事件历史，也不调用额外模型生成文本。',
+    evolutionPageHint: '调整状态影响、恢复与回合后演化；所有设置立即生效。',
     eventStored: '状态事件已记录。',
     interestAdded: '兴趣已添加。',
     interestUpdated: '兴趣已更新。',
@@ -280,9 +398,12 @@ const DICT = {
     authorized: 'Authorization valid',
     unauthorized: 'Authorization invalid',
     overview: 'Overview',
-    settings: 'Common settings',
+    settings: 'Evolution',
+    context: 'Context & tools',
+    rules: 'Session rules',
+    data: 'Data & diagnostics',
     interests: 'Interests',
-    audit: 'History',
+    audit: 'Events & audit',
     advanced: 'Advanced',
     diagnostics: 'Diagnostics',
     mood: 'Mood',
@@ -383,6 +504,64 @@ const DICT = {
     requestFailed: 'Request failed: ',
     noPermission: 'Only the authenticated DSH owner may manage State.',
     scopes: 'State scenes',
+    workspace: 'Workspace',
+    noWorkspace: 'No Workspace bound',
+    bindWorkspace: 'Bind Workspace',
+    unbindWorkspace: 'Unbind',
+    workspaceBound: 'Workspace bound',
+    workspaceUnbound: 'Unbound (legacy v1 private mode)',
+    workspaceMissing: 'Workspace missing',
+    workspaceRegistryUnavailable: 'workspaceRegistry unavailable',
+    workspacePick: 'Choose a DSH Workspace',
+    workspaceHint: 'Uses the official DSH workspaceRegistry stable id and live sessionIds; titles and paths never decide identity.',
+    workspaceRebind: 'Bind a different Workspace?',
+    workspaceRebindBody: 'This switches the Workspace main state. The old Workspace state, rules, and audit are kept and never merged.',
+    unbindTitle: 'Unbind Workspace?',
+    unbindBody: 'After unbinding, State returns to v1 per-Session private behavior. Old data, rules, and audit are kept and never merged.',
+    workspaceDefaultMode: 'Default Session policy',
+    workspaceDefaultHint: 'Workspace members share the main state by default; add exceptions below.',
+    workspaceMain: 'Workspace shared main state',
+    workspaceLegacy: 'Legacy private scopes and audit are retained, never auto-merged.',
+    workspaceNoBinding: 'Bind a Workspace to share one main state across its legitimate Sessions.',
+    sessionRules: 'Session rules',
+    sessionRulesHint: 'Rules accept stable Session ids only and are verified against live Workspace membership. Revocation applies to the next tool call, injection, or event.',
+    session: 'Session',
+    mode: 'Mode',
+    modeShared: 'Shared',
+    modeReadOnly: 'Read-only',
+    modeIsolated: 'Isolated',
+    modeDisabled: 'Disabled',
+    modeSharedHelp: 'Reads the main state; legitimate events from this Session may affect it slightly.',
+    modeReadOnlyHelp: 'Reads the main state without modifying it. Suitable for busy group chats and observation.',
+    modeIsolatedHelp: 'Uses this Session\'s own state and interests; never reads or writes the main state.',
+    modeDisabledHelp: 'No injection, no event processing, no effective model read/write; data is retained.',
+    saveRule: 'Apply rule',
+    clearRule: 'Use default',
+    ruleSaved: 'Session rule saved and effective immediately.',
+    ruleCleared: 'Workspace default policy restored.',
+    archivedSession: 'Archived',
+    noSessions: 'This Workspace has no manageable Sessions.',
+    qqSceneUnavailable: 'QQ group/private-number rules are not implemented: this DSH exposes no publicly verifiable Scene mapping. Only stable Session ids are accepted, never display names.',
+    noExtraModel: 'No additional model appraisal is implemented; no extra LLM is started per turn.',
+    autoEvolution: 'Post-turn evolution',
+    autoEvolutionHelp: 'Processes only completed real model turns, deduplicated and rate-limited by stable Session/turn/seq evidence.',
+    injectionLevel: 'Injection level',
+    injectionBrief: 'Brief',
+    injectionDetailed: 'Detailed',
+    toolStatus: 'Model tool status',
+    toolGet: 'state_get',
+    toolAppraise: 'state_appraise (optional low trust)',
+    toolInterests: 'state_interests',
+    toolHealth: 'state_health',
+    toolDisabledNote: 'In disabled mode, model tools return no effective state.',
+    dataHint: 'Database, migration, backup, and diagnostics. Restore still needs explicit confirmation.',
+    migration: 'Schema migration',
+    migrationNone: 'No migration records.',
+    migrationBackup: 'Pre-migration backup',
+    storage: 'Local storage',
+    legacyPreserved: 'Legacy v1 private scopes and audit are retained and never auto-merged into the Workspace main state.',
+    contextPageHint: 'Reads the latest state each time a model context is actually assembled; it never injects full event history or calls another model.',
+    evolutionPageHint: 'Adjust influence, recovery, and post-turn evolution; every setting applies immediately.',
     eventStored: 'State event recorded.',
     interestAdded: 'Interest added.',
     interestUpdated: 'Interest updated.',
@@ -438,7 +617,7 @@ function scopeLabel(scope, t, lang) {
   if (!scope) return '';
   const privacy = scope.privacy === 'shared' ? t('shared') : t('private');
   const authorization = scope.authorized === false ? ' · ' + t('unauthorized') : '';
-  return (scope.source === 'life' ? t('life') : t('local')) + ' · ' + privacy + ' · ' + String(scope.sceneId || scope.id).slice(0, 34) + authorization;
+  return (scope.source === 'life' ? t('life') : scope.source === 'workspace' ? t('workspaceMain') : t('local')) + ' · ' + privacy + ' · ' + String(scope.sceneId || scope.id).slice(0, 34) + authorization;
 }
 
 function eventLabel(type, lang) {
@@ -574,7 +753,7 @@ function FieldRow({ field, draft, snapshot, errors, disabled, onChange, t, lang 
         'aria-label': help.label,
         onChange: (event) => onChange(event.target.value),
       },
-      ...field.enum.map((option) => {
+      ...field.enum.filter((option) => option !== 'state_interests' || value === 'state_interests').map((option) => {
         const labels = {
           off: t('contextOff'),
           subtle: lang === 'en' ? 'Subtle' : '轻微',
@@ -582,6 +761,7 @@ function FieldRow({ field, draft, snapshot, errors, disabled, onChange, t, lang 
           strong: lang === 'en' ? 'Noticeable' : '明显',
           brief: t('contextBrief'),
           state_interests: t('contextStateInterests'),
+          detailed: t('injectionDetailed'),
         };
         return h('option', { key: option, value: option }, labels[option] || option);
       }),
@@ -632,6 +812,9 @@ function Panel({ ctx }) {
   const [page, setPage] = React.useState(1);
   const [status, setStatus] = React.useState(null);
   const [diagnostics, setDiagnostics] = React.useState(null);
+  const [workspaceData, setWorkspaceData] = React.useState(null);
+  const [workspacePick, setWorkspacePick] = React.useState('');
+  const [ruleDrafts, setRuleDrafts] = React.useState({});
   const [backups, setBackups] = React.useState([]);
   const [selectedBackup, setSelectedBackup] = React.useState('');
   const [message, setMessage] = React.useState('');
@@ -746,6 +929,21 @@ function Panel({ ctx }) {
     }
   }, [showError, t]);
 
+  const loadWorkspace = React.useCallback(async () => {
+    try {
+      const data = await api('/workspace');
+      if (!alive.current) return;
+      setWorkspaceData(data);
+      const list = Array.isArray(data.workspaces?.workspaces) ? data.workspaces.workspaces : [];
+      setWorkspacePick((current) => {
+        if (current && list.some((item) => item.workspaceId === current)) return current;
+        return data.binding?.workspaceId ?? list[0]?.workspaceId ?? '';
+      });
+    } catch (e) {
+      if (alive.current) showError(t('requestFailed') + e.message);
+    }
+  }, [showError, t]);
+
   React.useEffect(() => {
     alive.current = true;
     let form;
@@ -780,6 +978,7 @@ function Panel({ ctx }) {
       loadStatus();
       loadScopes();
       loadDiagnostics();
+      loadWorkspace();
       return () => {
         alive.current = false;
         initialized.current = false;
@@ -790,8 +989,9 @@ function Panel({ ctx }) {
     loadStatus();
     loadScopes();
     loadDiagnostics();
+    loadWorkspace();
     return () => { alive.current = false; };
-  }, [ctx, loadDiagnostics, loadScopes, loadStatus, showError]);
+  }, [ctx, loadDiagnostics, loadScopes, loadStatus, loadWorkspace, showError]);
 
   React.useEffect(() => {
     if (!scopeId) {
@@ -807,9 +1007,16 @@ function Panel({ ctx }) {
   }, [scopeId, loadAudit, loadInterests, loadOverview, snapshot?.value?.auditPageSize]);
 
   React.useEffect(() => {
-    if (tab === 'diagnostics') loadDiagnostics();
+    if (tab === 'data' || tab === 'context') loadDiagnostics();
+    if (tab === 'rules' || tab === 'overview') loadWorkspace();
     if (tab === 'audit' && scopeId) loadAudit(scopeId, page, Number(snapshot?.value?.auditPageSize ?? 20));
-  }, [tab, page, scopeId, snapshot?.value?.auditPageSize, loadAudit, loadDiagnostics]);
+  }, [tab, page, scopeId, snapshot?.value?.auditPageSize, loadAudit, loadDiagnostics, loadWorkspace]);
+
+  React.useEffect(() => {
+    if (workspaceData?.binding?.state !== 'ready') return;
+    const workspaceScope = 'workspace:' + workspaceData.binding.workspaceId;
+    if (scopes.some((scope) => scope.id === workspaceScope)) setScopeId(workspaceScope);
+  }, [workspaceData?.binding?.state, workspaceData?.binding?.workspaceId, scopes]);
 
   React.useEffect(() => {
     if (tab !== 'overview' || !scopeId) return undefined;
@@ -820,7 +1027,7 @@ function Panel({ ctx }) {
   }, [tab, scopeId, loadOverview]);
 
   const refreshAll = React.useCallback(async () => {
-    await Promise.all([loadStatus(), loadScopes(), loadDiagnostics()]);
+    await Promise.all([loadStatus(), loadScopes(), loadDiagnostics(), loadWorkspace()]);
     if (scopeId) {
       await Promise.all([
         loadOverview(scopeId),
@@ -828,7 +1035,7 @@ function Panel({ ctx }) {
         loadAudit(scopeId, page, Number(snapshot?.value?.auditPageSize ?? 20)),
       ]);
     }
-  }, [loadAudit, loadDiagnostics, loadInterests, loadOverview, loadScopes, loadStatus, page, scopeId, snapshot?.value?.auditPageSize]);
+  }, [loadAudit, loadDiagnostics, loadInterests, loadOverview, loadScopes, loadStatus, loadWorkspace, page, scopeId, snapshot?.value?.auditPageSize]);
 
   const changeField = (key, value) => {
     setDraft((previous) => setDraftValue(previous, key, value));
@@ -1008,6 +1215,94 @@ function Panel({ ctx }) {
     });
   };
 
+  const requestBind = () => {
+    if (!workspacePick) {
+      showError(t('workspacePick'));
+      return;
+    }
+    const rebind = workspaceData?.binding?.bound === true && workspaceData.binding.workspaceId !== workspacePick;
+    setConfirm({
+      title: rebind ? t('workspaceRebind') : t('bindWorkspace'),
+      body: rebind ? t('workspaceRebindBody') : t('workspaceHint'),
+      confirmLabel: t('bindWorkspace'),
+      danger: rebind,
+      action: async () => {
+        setBusy(true);
+        try {
+          await api('/workspace', {
+            method: 'POST',
+            body: { action: 'bind', workspaceId: workspacePick, ...(rebind ? { confirm: 'REBIND' } : {}) },
+          });
+          showMessage(t('workspaceBound') + '：' + workspacePick);
+          await refreshAll();
+        } catch (e) {
+          showError(e.message);
+        } finally {
+          setBusy(false);
+          setConfirm(null);
+        }
+      },
+    });
+  };
+
+  const requestUnbind = () => {
+    setConfirm({
+      title: t('unbindTitle'),
+      body: t('unbindBody'),
+      confirmLabel: t('unbindWorkspace'),
+      danger: true,
+      action: async () => {
+        setBusy(true);
+        try {
+          await api('/workspace', { method: 'POST', body: { action: 'unbind', confirm: 'UNBIND' } });
+          showMessage(t('workspaceUnbound'));
+          await refreshAll();
+        } catch (e) {
+          showError(e.message);
+        } finally {
+          setBusy(false);
+          setConfirm(null);
+        }
+      },
+    });
+  };
+
+  const applyRule = async (sessionId, mode) => {
+    setBusy(true);
+    try {
+      await api('/session-rules', { method: 'POST', body: { action: 'set', sessionId, mode } });
+      setRuleDrafts((previous) => {
+        const next = { ...previous };
+        delete next[sessionId];
+        return next;
+      });
+      showMessage(t('ruleSaved'));
+      await loadWorkspace();
+    } catch (e) {
+      showError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const clearRule = async (sessionId) => {
+    setBusy(true);
+    try {
+      await api('/session-rules', { method: 'POST', body: { action: 'clear', sessionId } });
+      setRuleDrafts((previous) => {
+        const next = { ...previous };
+        delete next[sessionId];
+        return next;
+      });
+      showMessage(t('ruleCleared'));
+      await loadWorkspace();
+    } catch (e) {
+      showError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const addInterest = async () => {
     if (!scopeId || !newInterest.name.trim()) return;
     setBusy(true);
@@ -1118,11 +1413,22 @@ function Panel({ ctx }) {
   }
 
   const disabled = busy || !draft.writable;
-  const settingsFields = FIELDS.filter((field) => field.group === 'common');
-  const advancedFields = FIELDS.filter((field) => field.group === 'advanced');
+  const evolutionKeys = ['stateEvolutionEnabled', 'eventSensitivity', 'autoRecovery', 'recoverySpeed', 'autoInterestUpdate', 'autoEventProcessingEnabled', 'sharedEventWeight', 'autoEventMinIntervalSeconds', 'autoEventMaxPerHour'];
+  const contextKeys = ['influenceStrength', 'contextInjectionMode', 'contextMaxChars', 'modelAppraisalEnabled'];
+  const settingsFields = FIELDS.filter((field) => evolutionKeys.includes(field.key));
+  const advancedFields = FIELDS.filter((field) => !evolutionKeys.includes(field.key) && !contextKeys.includes(field.key));
   const pageSize = Number(snapshot?.value?.auditPageSize ?? 20);
   const currentPage = clampPage(page, audit.total, pageSize);
   const totalPages = pageCount(audit.total, pageSize);
+
+  const workspaceStatusChip = (() => {
+    const binding = workspaceData?.binding;
+    if (!binding) return h('span', { className: 'chip' }, t('workspace') + ' …');
+    if (binding.state === 'ready') return h('span', { className: 'chip ok' }, t('workspaceBound') + ' · ' + (binding.title || binding.workspaceId).slice(0, 28));
+    if (binding.state === 'workspace_missing') return h('span', { className: 'chip bad' }, t('workspaceMissing'));
+    if (binding.state === 'registry_unavailable') return h('span', { className: 'chip bad' }, t('workspaceRegistryUnavailable'));
+    return h('span', { className: 'chip warn' }, t('workspaceUnbound'));
+  })();
 
   const header = h(
     'div',
@@ -1133,6 +1439,7 @@ function Panel({ ctx }) {
       h(
         'div',
         null,
+        h('div', { className: 'eyebrow' }, 'AMADEUS / STATE / ' + t(tab)),
         h('h2', null, t('title')),
         h('div', { className: 'sub' }, t('subtitle')),
       ),
@@ -1148,7 +1455,8 @@ function Panel({ ctx }) {
       { className: 'chips' },
       h('span', { className: 'chip ' + (status?.state === 'ready' ? 'ok' : 'bad') }, t('version') + ' ' + (status?.version ?? '…')),
       h('span', { className: 'chip ' + (status?.state === 'ready' ? 'ok' : 'bad') }, status?.state === 'ready' ? t('stateHealthy') : t('stateDegraded')),
-      h('span', { className: 'chip' }, t('injection') + '：' + (snapshot.value.contextInjectionMode === 'off' ? t('contextOff') : snapshot.value.contextInjectionMode === 'state_interests' ? t('contextStateInterests') : t('contextBrief'))),
+      workspaceStatusChip,
+      h('span', { className: 'chip' }, t('injection') + '：' + (snapshot.value.contextInjectionMode === 'off' ? t('contextOff') : snapshot.value.contextInjectionMode === 'state_interests' ? t('contextStateInterests') : snapshot.value.contextInjectionMode === 'detailed' ? t('injectionDetailed') : t('contextBrief'))),
       h('span', { className: 'chip' }, t('schema') + ' ' + (status?.schemaVersion ?? '—')),
       draft.writable ? null : h('span', { className: 'chip warn' }, t('readOnly')),
     ),
@@ -1188,14 +1496,27 @@ function Panel({ ctx }) {
     preview ? h('div', { className: 'message', role: 'status' }, preview) : null,
   );
 
-  const tabs = h(
+  const PAGES = [
+    ['overview', '▦'],
+    ['settings', '♡'],
+    ['interests', '☆'],
+    ['audit', '≡'],
+    ['context', '◌'],
+    ['rules', '⚙'],
+    ['data', '▤'],
+  ];
+  const nav = h(
     'div',
-    { className: 'tabs', role: 'tablist', 'aria-label': t('title') },
-    ...['overview', 'settings', 'interests', 'audit', 'advanced', 'diagnostics'].map((key) =>
-      h('button', { type: 'button', key, role: 'tab', 'aria-selected': tab === key, onClick: () => setTab(key) }, t(key)),
+    { className: 'navList', role: 'tablist', 'aria-label': t('title') },
+    ...PAGES.map(([key, icon]) =>
+      h(
+        'button',
+        { type: 'button', key, className: 'navButton', role: 'tab', 'aria-selected': tab === key, onClick: () => setTab(key) },
+        h('span', { className: 'navIcon', 'aria-hidden': 'true' }, icon),
+        h('span', null, t(key)),
+      ),
     ),
   );
-
   let content = null;
   if (tab === 'overview') {
     if (!scopeId) {
@@ -1216,6 +1537,21 @@ function Panel({ ctx }) {
         null,
         h(
           'div',
+          { className: 'workspaceBanner' },
+          h(
+            'div',
+            null,
+            h('strong', null, t('workspaceMain')),
+            h('small', null, workspaceData?.binding?.state === 'ready'
+              ? (workspaceData.binding.title || workspaceData.binding.workspaceId) + ' · ' + (workspaceData.binding.sessionCount ?? 0) + ' ' + t('session')
+              : t('workspaceNoBinding')),
+          ),
+          h('div', { className: 'actions' },
+            h('button', { type: 'button', onClick: () => setTab('rules') }, t('rules')),
+          ),
+        ),
+        h(
+          'div',
           { className: 'grid' },
           h(StateCard, { label: t('mood'), value: overview.state.mood, baseline: overview.baseline.mood, min: -100, max: 100, direction: overview.explanation.direction.mood, t }),
           h(StateCard, { label: t('energy'), value: overview.state.energy, baseline: overview.baseline.energy, min: 0, max: 100, direction: overview.explanation.direction.energy, t }),
@@ -1226,7 +1562,7 @@ function Panel({ ctx }) {
           { className: 'panel' },
           h('h3', null, overview.explanation.summary),
           h('p', null, h('strong', null, t('tendency') + '：'), overview.tendency),
-          h('small', null, t('source') + '：' + (overview.scope.source === 'life' ? t('life') : t('local')) + ' · Persona ' + String(overview.scope.personaId ?? '—').slice(0, 40) + ' · Scene ' + String(overview.scope.sceneId ?? '—').slice(0, 40)),
+          h('small', null, t('source') + '：' + (overview.scope.kind === 'workspace' ? t('workspaceMain') : overview.scope.source === 'life' ? t('life') : t('local')) + ' · ' + t('mode') + ' ' + (overview.access?.mode ?? '—') + ' · Persona ' + String(overview.scope.personaId ?? '—').slice(0, 40)),
           h('small', null, t('lastUpdate') + '：' + new Date(overview.updatedAt).toLocaleString() + ' · ' + t('lastEvent') + '：' + (overview.lastEventAt ? new Date(overview.lastEventAt).toLocaleString() : '—')),
         ),
         overview.interests.length > 0
@@ -1252,6 +1588,7 @@ function Panel({ ctx }) {
       'div',
       { className: 'panel' },
       h('h3', null, t('settings')),
+      h('small', null, t('evolutionPageHint')),
       ...settingsFields.map((field) =>
         h(FieldRow, {
           key: field.key,
@@ -1395,7 +1732,119 @@ function Panel({ ctx }) {
         h('button', { type: 'button', onClick: () => loadAudit(scopeId, currentPage, pageSize), disabled: busy }, t('refresh')),
       ),
     );
-  } else if (tab === 'advanced') {
+  } else if (tab === 'context') {
+    const contextFields = FIELDS.filter((field) => contextKeys.includes(field.key));
+    content = h(
+      React.Fragment,
+      null,
+      h(
+        'div',
+        { className: 'panel' },
+        h('h3', null, t('context')),
+        h('small', null, t('contextPageHint')),
+        ...contextFields.map((field) =>
+          h(FieldRow, {
+            key: field.key,
+            field,
+            draft,
+            snapshot,
+            errors,
+            disabled,
+            onChange: (value) => changeField(field.key, value),
+            t,
+            lang,
+          }),
+        ),
+      ),
+      h(
+        'div',
+        { className: 'panel' },
+        h('h3', null, t('toolStatus')),
+        h('div', { className: 'sessionRow' }, h('div', null, h('strong', null, t('toolGet')), h('small', null, t('toolDisabledNote'))), h('span', { className: 'chip ok' }, t('enabled'))),
+        h('div', { className: 'sessionRow' }, h('div', null, h('strong', null, t('toolAppraise')), h('small', null, t('noExtraModel'))), h('span', { className: 'chip ' + (snapshot.value.modelAppraisalEnabled ? 'ok' : 'warn') }, snapshot.value.modelAppraisalEnabled ? t('enabled') : t('disabled'))),
+        h('div', { className: 'sessionRow' }, h('div', null, h('strong', null, t('toolInterests')), h('small', null, t('contextPageHint'))), h('span', { className: 'chip ok' }, t('enabled'))),
+        h('div', { className: 'sessionRow' }, h('div', null, h('strong', null, t('toolHealth'))), h('span', { className: 'chip ok' }, t('enabled'))),
+        h('div', { className: 'hintCard' }, h('small', null, t('noExtraModel'))),
+      ),
+    );
+  } else if (tab === 'rules') {
+    const data = workspaceData;
+    const binding = data?.binding;
+    const workspaces = Array.isArray(data?.workspaces?.workspaces) ? data.workspaces.workspaces : [];
+    const sessions = Array.isArray(data?.sessions) ? data.sessions : [];
+    const modeHelp = {
+      shared: t('modeSharedHelp'),
+      read_only: t('modeReadOnlyHelp'),
+      isolated: t('modeIsolatedHelp'),
+      disabled: t('modeDisabledHelp'),
+    };
+    content = h(
+      React.Fragment,
+      null,
+      h(
+        'div',
+        { className: 'panel' },
+        h('h3', null, t('workspaceDefaultMode')),
+        h('small', null, t('workspaceHint')),
+        binding?.state === 'ready'
+          ? h('div', { className: 'workspaceBanner' },
+              h('div', null, h('strong', null, binding.title || binding.workspaceId), h('small', null, t('workspaceBound') + ' · ' + (binding.sessionCount ?? 0) + ' ' + t('session') + ' · ' + t('modeShared'))),
+              h('div', { className: 'actions' },
+                h('button', { type: 'button', disabled: busy, onClick: requestUnbind }, t('unbindWorkspace')),
+              ),
+            )
+          : h('div', null,
+              h('div', { className: 'message', role: 'status' }, binding?.state === 'unbound' ? t('workspaceNoBinding') : binding?.message || t('workspaceRegistryUnavailable')),
+              h('div', { className: 'actions' },
+                h('label', null, t('workspacePick'),
+                  h('select', { value: workspacePick, disabled: busy || workspaces.length === 0, onChange: (event) => setWorkspacePick(event.target.value), 'aria-label': t('workspacePick') },
+                    ...(workspaces.length === 0
+                      ? [h('option', { key: 'none', value: '' }, data?.workspaces?.available === false ? t('workspaceRegistryUnavailable') : t('workspacePick'))]
+                      : workspaces.map((item) => h('option', { key: item.workspaceId, value: item.workspaceId }, (item.title || item.workspaceId) + ' · ' + item.sessionCount + ' ' + t('session')))),
+                  ),
+                ),
+                h('button', { type: 'button', className: 'primary', disabled: busy || !workspacePick, onClick: requestBind }, t('bindWorkspace')),
+              ),
+            ),
+        h('div', { className: 'hintCard' }, h('small', null, t('workspaceLegacy'))),
+      ),
+      h(
+        'div',
+        { className: 'panel' },
+        h('h3', null, t('sessionRules')),
+        h('small', null, t('sessionRulesHint')),
+        binding?.state !== 'ready'
+          ? h('p', { className: 'muted' }, t('workspaceNoBinding'))
+          : sessions.length === 0
+            ? h('p', { className: 'muted' }, t('noSessions'))
+            : h('div', null, ...sessions.map((entry) => {
+                const value = ruleDrafts[entry.sessionId] ?? entry.mode;
+                return h(
+                  'div',
+                  { className: 'sessionRow', key: entry.sessionId },
+                  h('div', null,
+                    h('div', { className: 'mono' }, entry.sessionId),
+                    h('small', null, entry.archived ? t('archivedSession') : entry.explicit ? t('sessionRules') : t('workspaceDefaultMode')),
+                  ),
+                  entry.archived
+                    ? h('span', { className: 'chip warn' }, t('archivedSession'))
+                    : h('select', {
+                        value,
+                        disabled: busy,
+                        'aria-label': t('mode'),
+                        onChange: (event) => setRuleDrafts({ ...ruleDrafts, [entry.sessionId]: event.target.value }),
+                      }, ...(data?.modes ?? ['shared', 'read_only', 'isolated', 'disabled']).map((mode) => h('option', { key: mode, value: mode }, t('mode' + mode.split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(''))))),
+                  h('div', { className: 'actions' },
+                    h('button', { type: 'button', disabled: busy || entry.archived || value === entry.mode, onClick: () => applyRule(entry.sessionId, value) }, t('saveRule')),
+                    entry.explicit ? h('button', { type: 'button', disabled: busy || entry.archived, onClick: () => clearRule(entry.sessionId) }, t('clearRule')) : null,
+                  ),
+                );
+              })),
+        h('div', { className: 'hintCard' }, h('small', null, t('qqSceneUnavailable'))),
+      ),
+    );
+  } else if (tab === 'data') {
+    const migrations = Array.isArray(workspaceData?.migration) ? workspaceData.migration : Array.isArray(diagnostics?.migration) ? diagnostics.migration : [];
     content = h(
       React.Fragment,
       null,
@@ -1438,6 +1887,60 @@ function Panel({ ctx }) {
         h('h3', null, t('reset')),
         h('p', null, t('confirmResetBody')),
         h('div', { className: 'actions' }, h('button', { type: 'button', className: 'danger', disabled: disabled || !overview?.state, onClick: doReset }, t('reset'))),
+      ),
+      h(
+        'div',
+        { className: 'panel' },
+        h('h3', null, t('migration')),
+        migrations.length === 0
+          ? h('p', { className: 'muted' }, t('migrationNone'))
+          : h('div', { className: 'tableWrap' },
+              h('table', { className: 'dataTable' },
+                h('thead', null, h('tr', null, h('th', null, t('version')), h('th', null, t('time')), h('th', null, t('migrationBackup')))),
+                h('tbody', null, ...migrations.map((entry) => h('tr', { key: entry.id },
+                  h('td', null, entry.fromVersion + ' → ' + entry.toVersion + ' · ' + entry.status),
+                  h('td', null, entry.completedAt ? new Date(entry.completedAt).toLocaleString() : '—'),
+                  h('td', { className: 'mono' }, entry.backupFile || '—'),
+                ))),
+              ),
+            ),
+        h('small', null, t('legacyPreserved')),
+      ),
+      h(
+        'div',
+        { className: 'panel' },
+        h('h3', null, t('data')),
+        h('div', { className: 'grid' },
+          h('div', { className: 'card' }, h('small', null, t('version')), h('div', { className: 'value' }, diagnostics?.version ?? status?.version ?? '—')),
+          h('div', { className: 'card' }, h('small', null, t('schema')), h('div', { className: 'value' }, diagnostics?.schemaVersion ?? status?.schemaVersion ?? '—')),
+          h('div', { className: 'card' }, h('small', null, t('counts')), h('div', { className: 'value' }, diagnostics?.database?.counts ? (diagnostics.database.counts.events ?? 0) + ' / ' + (diagnostics.database.counts.interests ?? 0) : '—')),
+        ),
+        h('p', null, t('lifeIntegration') + '：' + (diagnostics?.integrations?.life?.available ? (diagnostics.integrations.life.enabled ? t('enabled') : t('disabled')) : t('notConnected'))),
+        h('p', null, t('memoryIntegration') + '：' + (diagnostics?.integrations?.memory?.available ? (diagnostics.integrations.memory.enabled ? t('enabled') : t('disabled')) : t('notConnected'))),
+        h('p', null, t('memoryWrite') + '：' + (diagnostics?.integrations?.memory?.writeAvailable ? t('memoryWriteSafe') : t('memoryWriteUnavailable'))),
+        h('p', null, t('database') + '：' + (diagnostics?.database?.database ?? '—')),
+        h('p', null, t('lastError') + '：' + (diagnostics?.lastError?.message ?? '—')),
+        h('small', null, t('dataHint')),
+        h('div', { className: 'actions' },
+          h('button', { type: 'button', onClick: loadDiagnostics, disabled: busy }, t('refresh')),
+          h('button', { type: 'button', onClick: doBackup, disabled: busy }, t('backup')),
+        ),
+      ),
+      h(
+        'div',
+        { className: 'panel' },
+        h('h3', null, t('backups')),
+        backups.length === 0
+          ? h('p', null, t('noBackups'))
+          : h('div', { className: 'actions' },
+              h('label', null, t('selectBackup'),
+                h('select', { value: selectedBackup, disabled: busy, onChange: (event) => setSelectedBackup(event.target.value) },
+                  ...backups.map((item) => h('option', { key: item.file, value: item.file }, item.file + ' · ' + (item.bytes ?? 0) + ' B · ' + (item.createdAt ?? ''))),
+                ),
+              ),
+              h('button', { type: 'button', className: 'danger', onClick: doRestore, disabled: busy || !selectedBackup }, t('restoreBackup')),
+            ),
+        h('small', null, t('restoreBackupHint')),
       ),
     );
   } else if (tab === 'diagnostics') {
@@ -1496,16 +1999,34 @@ function Panel({ ctx }) {
     'div',
     { 'data-amadeus-state': 'true' },
     h('style', null, CSS),
-    header,
-    tabs,
-    notice,
-    content,
     h(
       'div',
-      { className: 'actions', style: { marginTop: '14px' } },
-      h('button', { type: 'button', className: 'primary', disabled: disabled || hasErrors || !dirty || conflictRef.current, onClick: save }, busy ? t('saving') : t('save')),
-      h('button', { type: 'button', disabled: busy || (!dirty && !conflictRef.current), onClick: cancel }, t('cancel')),
-      h('small', null, t('adminNote')),
+      { className: 'shell' },
+      h(
+        'aside',
+        { className: 'side' },
+        h('div', { className: 'brand' },
+          h('div', { className: 'brandMark', 'aria-hidden': 'true' }, 'A'),
+          h('div', null, h('strong', null, t('title')), h('small', null, lang === 'en' ? 'Independent DSH plugin' : '独立 DSH 插件')),
+        ),
+        h('span', { className: 'sideTag' }, '@amadeus/state'),
+        h('div', { className: 'sideLabel' }, 'State'),
+        nav,
+      ),
+      h(
+        'div',
+        { className: 'contentArea' },
+        header,
+        notice,
+        content,
+        h(
+          'div',
+          { className: 'actions', style: { marginTop: '14px' } },
+          h('button', { type: 'button', className: 'primary', disabled: disabled || hasErrors || !dirty || conflictRef.current, onClick: save }, busy ? t('saving') : t('save')),
+          h('button', { type: 'button', disabled: busy || (!dirty && !conflictRef.current), onClick: cancel }, t('cancel')),
+          h('small', null, t('adminNote')),
+        ),
+      ),
     ),
     h(ConfirmDialog, {
       open: confirm !== null,

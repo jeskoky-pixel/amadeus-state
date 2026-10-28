@@ -4,6 +4,75 @@ All notable product changes to Amadeus State are recorded here. The package
 version is the release identity; the SQLite schema has its own version in
 `meta.schema_version`.
 
+## 1.1.0 — 2026-10-28
+
+Workspace-bound shared State, per-Session policy, trusted post-turn evolution,
+safe schema 1 → 2 migration, and a seven-page independent console.
+
+### Added
+
+- Explicit binding to one official DSH Workspace by stable `workspaceRegistry`
+  id; live `get(id).sessionIds` membership, archived-Session refusal, late-join
+  support, failure-closed behavior for other/deleted/unavailable Workspaces, and
+  restart persistence. Display titles and paths never decide identity.
+- New Workspace main-state scope, separate from every legacy v1 private scope.
+  Legacy scopes, events, interests and audit remain untouched and are never
+  auto-merged.
+- Four Session modes (`shared`, `read_only`, `isolated`, `disabled`) stored as
+  stable-Session exceptions, re-evaluated on every tool call, injection and
+  event. Revocation is hot; isolated state never reads or writes the main state.
+- Trusted `session/event` observer subscribed with `{ global: true }`: only a
+  completed `turn/end` with structured tool-work evidence can produce a small,
+  valence-neutral energy/curiosity change. Idempotent per Session turn, bounded
+  by a minimum interval and hourly cap, weighted per Session on shared state.
+  Greetings and text-only turns produce zero change; no text/token sentiment
+  heuristic and no extra LLM call.
+- Context injection levels `off` / `brief` / `detailed` (legacy
+  `state_interests` remains accepted) with shared/isolated/read-only wording and
+  the same character budget.
+- Seven-page console visual refresh: Overview, Evolution, Interests, Events &
+  Audit, Context & Model Tools, Session Rules, Data & Diagnostics. Workspace
+  picker/binding, main-state visualization, Session rules, migration log,
+  diagnostics and backup/restore are wired to real Host APIs.
+- Owner API: `GET /workspace`, `GET /workspaces`, `POST /workspace` (bind /
+  unbind with explicit confirmation), `POST /session-rules` (set / clear).
+- Schema 2 migration: additive columns/tables, consistent pre-migration
+  `VACUUM INTO` snapshot, integrity/schema/row-count checks, transactional
+  rollback, migration audit log, and v1 backup preflight/restore compatibility.
+- `VACUUM INTO` replaces copy-based backups, so committed WAL rows are always
+  included; backups are verified before success is reported.
+- Regression coverage for workspace isolation, late join/revocation, four
+  modes, cross-session sharing, shared-audit redaction, turn dedupe/limits,
+  zero-change conversation, v1 migration/failed rollback, WAL-consistent
+  backup, and listener global/disposal behavior.
+
+### Changed
+
+- `contextInjectionMode` adds `detailed`; old `state_interests` remains valid.
+- New conservative limits: `sharedEventWeight` 0.35,
+  `autoEventMinIntervalSeconds` 180, `autoEventMaxPerHour` 12.
+- `state_health` is policy-aware and never exposes global counts, reasons,
+  Workspace ids or cross-session times to the model.
+- Shared Workspace audit redacts raw Session reasons and evidence.
+
+### Fixed
+
+- Backup filenames now include a unique suffix, so a failed second backup in the
+  same clock tick cannot replace or delete an earlier verified backup.
+- Shared Workspace events no longer promote a private Session topic (model
+  summary, Life description, or Memory title) into a global interest without an
+  explicit trusted public-visibility contract. Numeric deltas and Owner-authored
+  manual global interests are preserved.
+- Model appraisal idempotency keys include the trusted Session id, so different
+  Sessions in one shared Workspace can each use turn 1 without collision while
+  retries within one Session stay deduplicated.
+
+### Compatibility
+
+- Package schema version is now `2`; v1 databases and v1 backups are migrated
+  on open with a pre-migration snapshot and automatic rollback on failure.
+- Still optional: Life and Memory. State core runs when either is absent.
+
 ## 1.0.0 — 2026-10-25
 
 First packaged State v1 release for the isolated DSH Desktop productization

@@ -4,10 +4,10 @@
 
 | 组件 | 声明/实测 | 说明 |
 |---|---|---|
-| Amadeus State | `1.0.0` | `package.json`、`STATE_VERSION`、tarball 版本必须一致 |
-| DSH Desktop | 声明 `>=0.2.1-rc.3 <0.3.0`；隔离实测 `0.2.1-rc.3` | 依赖当前 Settings/Plugin Manager/Connection 接口 |
+| Amadeus State | `1.1.0` | `package.json`、`STATE_VERSION`、tarball 版本必须一致 |
+| DSH Desktop | 声明 `>=0.2.1-rc.3 <0.3.0`；隔离实测基线 `0.2.1-rc.3` | 依赖当前 Settings/Plugin Manager/Connection/Workspace 接口 |
 | Node.js | `>=22.13.0` | 使用内置 `node:sqlite`（实验特性） |
-| SQLite schema | `1` | 打开较新/未知 schema 会备份后拒绝 |
+| SQLite schema | `2` | 打开 v1 会安全迁移；较新/未知 schema 会备份后拒绝 |
 | Browser bundle | DSH lazy-CJS | `window.__ModuleLoader__.load({id,factory})` |
 | Life | 可选 | 使用公开 `life` Host 服务的 identity/activity 方法 |
 | Mneme | 可选 | 使用原生 `memory_get` 读取引用；无写入路径 |
@@ -23,7 +23,9 @@ State 使用以下当前 DSH Desktop 0.2.1-rc.3 接口：
 - `ctx.systemPrompt.context(...)` 有界运行时上下文。
 - `ctx.tools.register(...)`、`ctx.tools.execute(...)`（Memory 引用）。
 - `connection.admit(req)` 的 owner principal 与 HTTP Host/Origin fence。
-- `node:sqlite`（Node 22）。
+- 官方 `ctx.workspaceRegistry`：`list()`、`get(id)`、`sessionIds`、`archivedSessionIds`（v1.1 工作区模式必需；缺失时核心运行但工作区模式失败关闭）。
+- `ctx.on('session/event', handler, { global: true })` 可信回合事件；`turn/end` 的 `reason.kind === 'completed'`。
+- `node:sqlite`（Node 22），包括 `VACUUM INTO` 一致性备份。
 
 如果某个 DSH 版本缺少 `connection.admit`，管理 HTTP 会 fail-closed 503；缺少 `settings.section`/`plugins.detail.section` 时对应入口不注册，但 Host 工具和动态上下文仍可运行（前提是基础 Host 服务存在）。State 不修改 DSH Desktop 核心。
 

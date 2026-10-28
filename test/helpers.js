@@ -25,7 +25,7 @@ export function tempDir(prefix = 'state-test-') {
 }
 
 /**
- * @param {{config?: Record<string, unknown>, now?: {value: number}, life?: Record<string, any>, memory?: Record<string, any>}} [options] - harness.
+ * @param {{config?: Record<string, unknown>, now?: {value: number}, life?: Record<string, any>, memory?: Record<string, any>, registry?: Record<string, any>}} [options] - harness.
  */
 export function makeService(options = {}) {
   const temp = tempDir();
@@ -37,9 +37,10 @@ export function makeService(options = {}) {
     store,
     getConfig: () => normalizeConfig(config),
     getLife: () => options.life,
+    getRegistry: () => options.registry,
     memory: options.memory,
     clock,
-    version: '1.0.0',
+    version: '1.1.0',
     startedAt: new Date(T0).toISOString(),
   });
   return {
@@ -172,6 +173,48 @@ export function fakeMemory({ fail = false, entries = new Map() } = {}) {
       calls.push({ op: 'save', title: input.title });
       if (fail) throw new Error('memory write failed');
       return { action: 'created', id: 'mem-1' };
+    },
+  };
+}
+
+/**
+ * Fake official workspaceRegistry surface used by the authority tests.
+ * @param {{workspaces?: Array<{id: string, title?: string, sessionIds?: string[]}>, archived?: string[]}} [options] - synthetic registry.
+ */
+export function fakeWorkspaceRegistry({ workspaces = [], archived = [] } = {}) {
+  let items = workspaces.map((workspace) => ({
+    id: workspace.id,
+    title: workspace.title ?? workspace.id,
+    sessionIds: [...(workspace.sessionIds ?? [])],
+  }));
+  let archivedIds = [...archived];
+  return {
+    get(id) {
+      const entity = items.find((workspace) => workspace.id === id);
+      return entity;
+    },
+    list() {
+      return items;
+    },
+    get archivedSessionIds() {
+      return archivedIds;
+    },
+    addSession(workspaceId, sessionId) {
+      const entity = items.find((workspace) => workspace.id === workspaceId);
+      if (entity && !entity.sessionIds.includes(sessionId)) entity.sessionIds.unshift(sessionId);
+    },
+    removeSession(workspaceId, sessionId) {
+      const entity = items.find((workspace) => workspace.id === workspaceId);
+      if (entity) entity.sessionIds = entity.sessionIds.filter((id) => id !== sessionId);
+    },
+    archive(sessionId) {
+      if (!archivedIds.includes(sessionId)) archivedIds.unshift(sessionId);
+    },
+    unarchive(sessionId) {
+      archivedIds = archivedIds.filter((id) => id !== sessionId);
+    },
+    removeWorkspace(workspaceId) {
+      items = items.filter((workspace) => workspace.id !== workspaceId);
     },
   };
 }

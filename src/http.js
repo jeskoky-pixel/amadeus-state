@@ -190,6 +190,12 @@ export function mountHttp(ctx, service) {
                     },
                   });
                 }
+                if (path === '/workspaces') {
+                  return send(res, 200, { ok: true, data: { binding: service.bindingStatus(), ...service.workspaces() } });
+                }
+                if (path === '/workspace') {
+                  return send(res, 200, { ok: true, data: service.workspaceOverview() });
+                }
                 if (path === '/scopes') {
                   const scopes = service.store.listScopes().map((row) => {
                     const authorization = service.scopeAuthorization(row);
@@ -259,6 +265,44 @@ export function mountHttp(ctx, service) {
               }
               if (req.method === 'POST') {
                 const body = await readBody(req);
+                if (path === '/workspace') {
+                  const action = String(body.action ?? '');
+                  if (action === 'bind') {
+                    return send(res, 200, {
+                      ok: true,
+                      data: service.bindWorkspace({
+                        workspaceId: String(body.workspaceId ?? ''),
+                        confirm: body.confirm,
+                      }),
+                    });
+                  }
+                  if (action === 'unbind') {
+                    return send(res, 200, {
+                      ok: true,
+                      data: service.unbindWorkspace({ confirm: body.confirm }),
+                    });
+                  }
+                  throw new StateValidationError('action must be bind or unbind');
+                }
+                if (path === '/session-rules') {
+                  const action = String(body.action ?? '');
+                  if (action === 'set') {
+                    return send(res, 200, {
+                      ok: true,
+                      data: service.setSessionRule({
+                        sessionId: String(body.sessionId ?? ''),
+                        mode: String(body.mode ?? ''),
+                      }),
+                    });
+                  }
+                  if (action === 'clear') {
+                    return send(res, 200, {
+                      ok: true,
+                      data: service.clearSessionRule({ sessionId: String(body.sessionId ?? '') }),
+                    });
+                  }
+                  throw new StateValidationError('action must be set or clear');
+                }
                 if (path === '/preview') {
                   const data = service.preview({
                     scopeId: String(body.scope ?? ''),

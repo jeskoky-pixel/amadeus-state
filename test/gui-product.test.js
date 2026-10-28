@@ -85,3 +85,51 @@ test('Memory write is not a user-facing Config field and has no UI toggle', () =
   assert.match(bundle, /memoryWriteReason|scene-scoped contract|Scene 级契约/);
   assert.doesNotMatch(bundle, /向 Memory 写入状态摘要/);
 });
+
+test('the independent console has seven State pages and no Life management surface', () => {
+  for (const key of ['overview', 'settings', 'interests', 'audit', 'context', 'rules', 'data']) {
+    assert.match(bundle, new RegExp(`['"]${key}['"]`), `missing State page ${key}`);
+  }
+  assert.match(bundle, /总览/);
+  assert.match(bundle, /状态演化/);
+  assert.match(bundle, /兴趣管理/);
+  assert.match(bundle, /事件与审计/);
+  assert.match(bundle, /上下文与模型工具/);
+  assert.match(bundle, /会话规则/);
+  assert.match(bundle, /数据与诊断/);
+  assert.doesNotMatch(bundle, /Amadeus Life/);
+  assert.doesNotMatch(bundle, /Life 意图/);
+  assert.doesNotMatch(bundle, /intent/i);
+});
+
+test('workspace binding and session rules use live Host API endpoints', () => {
+  assert.match(bundle, /api\('\/workspace'/);
+  assert.match(bundle, /api\('\/session-rules'/);
+  assert.match(bundle, /action: 'bind'/);
+  assert.match(bundle, /action: 'unbind'/);
+  assert.match(bundle, /confirm: 'REBIND'/);
+  assert.match(bundle, /confirm: 'UNBIND'/);
+  assert.match(bundle, /action: 'set'/);
+  assert.match(bundle, /action: 'clear'/);
+  assert.match(bundle, /workspaceRegistry/);
+  assert.match(bundle, /qqSceneUnavailable/);
+  assert.match(bundle, /archivedSession/);
+  assert.match(bundle, /noExtraModel/);
+  assert.match(bundle, /detailed/);
+});
+
+test('console layout follows the plugin container width, not the browser viewport', () => {
+  assert.match(bundle, /container-type:inline-size/);
+  assert.match(bundle, /container-name:amadeus-state-console/);
+  assert.match(bundle, /@container amadeus-state-console \(max-width:820px\)/);
+  const compact = bundle.match(/@container amadeus-state-console \(max-width:820px\)\{([\s\S]*?)\n\}/);
+  assert.ok(compact, 'compact container rule must exist');
+  assert.match(compact[1], /\.shell\{grid-template-columns:1fr/);
+  assert.match(compact[1], /\.side\{position:static\}/);
+  assert.match(compact[1], /\.navList\{display:grid/);
+  assert.match(compact[1], /\.sessionRow\{grid-template-columns/);
+  // The container is created only inside the plugin root, never on :root/body.
+  assert.match(bundle, /\[data-amadeus-state\]\{[^}]*container-type:inline-size/);
+  assert.equal((bundle.match(/container-type:inline-size/g) ?? []).length, 1);
+  assert.doesNotMatch(bundle, /:root[^}]*container-type/);
+});

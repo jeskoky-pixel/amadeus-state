@@ -140,6 +140,12 @@ export function registerTools(ctx, service) {
             source: view.scope.source,
             privacy: view.scope.privacy,
             authorization: view.scope.authorization,
+            kind: view.access?.scopeKind,
+          },
+          access: {
+            mode: view.access?.mode,
+            writable: view.access?.writable === true,
+            readOnly: view.access?.readOnly === true,
           },
           state: view.state,
           baseline: view.baseline,
@@ -285,6 +291,7 @@ export function registerTools(ctx, service) {
         }
         const view = service.viewForSession(sessionIdOf(exec), { includeInterests: true });
         return {
+          access: { mode: view.access?.mode, writable: view.access?.writable === true },
           interests: view.interests.slice(0, limit).map((interest) => ({
             name: interest.name,
             baseline: interest.baseline,

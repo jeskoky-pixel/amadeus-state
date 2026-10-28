@@ -12,6 +12,57 @@
 import { StateUnauthorizedError } from './model.js';
 
 /**
+ * @param {unknown} workspaceId - candidate DSH Workspace id.
+ * @returns {string} validated opaque Workspace id.
+ */
+export function requireWorkspaceId(workspaceId) {
+  if (
+    typeof workspaceId !== 'string' ||
+    workspaceId.trim().length === 0 ||
+    workspaceId.length > 200 ||
+    /[\r\n\u0000]/.test(workspaceId)
+  ) {
+    throw new StateUnauthorizedError('a valid DSH Workspace id is required');
+  }
+  return workspaceId;
+}
+
+/**
+ * Identity of the one Workspace-wide shared state.  It is deliberately not a
+ * Session scope: membership is verified against the live DSH registry on every
+ * read, injection, and event, never inferred from a display title or path.
+ * @param {string} workspaceId - DSH Workspace id.
+ * @returns {Record<string, unknown>} identity.
+ */
+export function workspaceIdentity(workspaceId) {
+  const id = requireWorkspaceId(workspaceId);
+  return {
+    kind: 'local',
+    scopeKind: 'workspace',
+    workspaceId: id,
+    personaId: 'amadeus:workspace',
+    sceneId: `workspace:${id}`,
+    privacy: 'shared',
+    scopeId: `workspace:${id}`,
+    ownerSessionId: null,
+    sessionId: null,
+    bindingRevision: null,
+    authorizationRef: 'workspace:binding',
+    identitySource: 'workspace',
+  };
+}
+
+/**
+ * One Session's independent state.  It is a private local scope and can never
+ * read or write the Workspace main scope.
+ * @param {string} sessionId - DSH Session id.
+ * @returns {Record<string, unknown>} identity.
+ */
+export function isolatedIdentity(sessionId) {
+  return { ...localIdentity(sessionId), identitySource: 'isolated_session' };
+}
+
+/**
  * @param {unknown} error - Life error.
  * @returns {boolean} whether Life answered "not found".
  */
@@ -134,10 +185,12 @@ export function isOwnerAdmission(admission) {
 export function scopeView(row) {
   return {
     id: row.id,
+    kind: row.scope_kind === 'workspace' ? 'workspace' : 'session',
+    workspaceId: row.workspace_id ?? null,
     personaId: row.persona_id,
     sceneId: row.scene_id,
     privacy: row.privacy,
-    source: row.source,
+    source: row.scope_kind === 'workspace' ? 'workspace' : row.source,
     ownerSessionId: row.owner_session_id,
     bindingRevision: row.binding_revision,
     createdAt: row.created_at,

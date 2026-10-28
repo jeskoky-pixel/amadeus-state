@@ -187,7 +187,7 @@ test('injected metadata covers every public field with both languages', () => {
 test('package manifest is independent and includes the built client', () => {
   const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
   assert.equal(pkg.name, '@amadeus/state');
-  assert.equal(pkg.version, '1.0.0');
+  assert.equal(pkg.version, '1.1.0');
   assert.equal(pkg.private, true);
   assert.equal(pkg.type, 'module');
   assert.equal(pkg.dependencies, undefined);

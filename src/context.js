@@ -31,14 +31,18 @@ export function renderStateContext(context, service, getConfig) {
   const sessionId = sessionIdOf(context);
   if (!sessionId) return '';
   try {
-    const view = service.viewForSession(sessionId, {
-      includeInterests: cfg.contextInjectionMode === 'state_interests',
-    });
+    const detailed = cfg.contextInjectionMode === 'detailed' || cfg.contextInjectionMode === 'state_interests';
+    const view = service.viewForSession(sessionId, { includeInterests: detailed });
     const state = view.state;
     const baseline = view.baseline;
     const explanation = view.explanation;
-    let text = `【Amadeus 状态】心情 ${signed(state.mood)}（基准 ${signed(baseline.mood)}，${explanation.direction.mood}）｜精力 ${format(state.energy)}/100（基准 ${format(baseline.energy)}）｜好奇 ${format(state.curiosity)}/100（基准 ${format(baseline.curiosity)}，${explanation.direction.curiosity}）。`;
-    if (cfg.contextInjectionMode === 'state_interests' && view.interests.length > 0) {
+    const scopeLabel = view.access?.scopeKind === 'workspace'
+      ? '工作区共享主状态'
+      : view.access?.mode === 'isolated'
+        ? '本会话独立状态'
+        : '当前状态';
+    let text = `【Amadeus 状态】${scopeLabel}：心情 ${signed(state.mood)}（基准 ${signed(baseline.mood)}，${explanation.direction.mood}）｜精力 ${format(state.energy)}/100（基准 ${format(baseline.energy)}）｜好奇 ${format(state.curiosity)}/100（基准 ${format(baseline.curiosity)}，${explanation.direction.curiosity}）。`;
+    if (detailed && view.interests.length > 0) {
       const interests = view.interests
         .slice(0, 4)
         .map((interest) => `${interest.name}（活跃 ${format(interest.activity)}）`)
@@ -50,10 +54,16 @@ export function renderStateContext(context, service, getConfig) {
     } else {
       text += '\n倾向：状态仅用于观察，不改变行为；以 Persona、用户请求、权限与调度为准。';
     }
-    text += '\n（仅为有界倾向，不覆盖 Persona、权限或 Life 调度，也不读取其他场景。）';
+    text += view.access?.mode === 'read_only'
+      ? '\n（只读共享：本会话不会修改主状态。仅为有界倾向，不覆盖 Persona、权限或 Life 调度。）'
+      : '\n（仅为有界倾向，不覆盖 Persona、权限或 Life 调度，也不读取其他会话的原始事件原因。）';
     return bound(text, cfg.contextMaxChars);
   } catch (error) {
-    service.noteError(error);
+    // A policy denial (disabled Session, foreign Workspace, missing registry)
+    // is an expected empty contribution, not a health error to log each turn.
+    if (!['STATE_UNAUTHORIZED', 'STATE_DISABLED', 'STATE_UNAVAILABLE'].includes(error?.code)) {
+      service.noteError(error);
+    }
     return '';
   }
 }

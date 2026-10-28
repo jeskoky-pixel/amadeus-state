@@ -159,7 +159,7 @@ test('service restore preflights, creates a safety backup, reverts data and reop
     });
     const backup = h.service.backup('restore');
     const preflight = h.store.preflightBackup(backup.file);
-    assert.equal(preflight.schemaVersion, '1');
+    assert.equal(preflight.schemaVersion, '2');
     assert.equal(preflight.counts.events, 1);
     await h.service.recordEvent({
       identity: id,
@@ -273,6 +273,85 @@ test('WAL-backed data survives an injected failure at every restore phase', asyn
     } finally {
       h.close();
     }
+  }
+});
+
+test('backup is a SQLite-consistent snapshot with committed WAL rows', async () => {
+  const h = makeService();
+  let blocker;
+  try {
+    h.store.db.exec('PRAGMA wal_autocheckpoint = 0');
+    const id = h.identity('session-wal-backup');
+    for (let i = 0; i < 3; i += 1) {
+      await h.service.recordEvent({
+        identity: id,
+        type: 'knowledge_gained',
+        source: 'host',
+        trust: 'trusted',
+        summary: `wal row ${i}`,
+        idempotencyKey: `wal-backup:${i}`,
+        topic: `Topic ${i}`,
+        interestDelta: 1,
+      });
+    }
+    assert.ok(existsSync(`${h.temp.path}-wal`), 'test setup must keep committed rows in WAL');
+    // Hold a read transaction on a second connection so a TRUNCATE checkpoint
+    // cannot complete.  A plain copy of the main file would omit WAL rows.
+    blocker = new DatabaseSync(h.temp.path);
+    blocker.exec('BEGIN');
+    blocker.prepare('SELECT COUNT(*) AS n FROM events').get();
+    h.store.db.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get();
+    const info = h.service.backup('wal-consistent');
+    const frozen = new DatabaseSync(join(h.temp.dir, 'backups', info.file), { readOnly: true });
+    try {
+      assert.equal(Object.values(frozen.prepare('PRAGMA integrity_check').get())[0], 'ok');
+      assert.equal(Number(frozen.prepare('SELECT COUNT(*) AS n FROM events').get().n), 3);
+      assert.equal(Number(frozen.prepare('SELECT COUNT(*) AS n FROM interests').get().n), 3);
+      assert.equal(String(frozen.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get().value), '2');
+    } finally {
+      frozen.close();
+    }
+  } finally {
+    try { blocker?.exec('ROLLBACK'); blocker?.close(); } catch { /* ignore */ }
+    h.close();
+  }
+});
+
+test('backup failure is reported instead of leaving an unverified file', () => {
+  const h = makeService();
+  try {
+    const original = h.store.db;
+    h.store.db = {
+      prepare() {
+        throw new Error('injected vacuum failure');
+      },
+      exec: original.exec.bind(original),
+    };
+    assert.throws(() => h.service.backup('failure'), /backup failed/i);
+    h.store.db = original;
+    const backups = existsSync(join(h.temp.dir, 'backups')) ? readdirSync(join(h.temp.dir, 'backups')) : [];
+    assert.equal(backups.filter((name) => name.endsWith('.sqlite')).length, 0);
+  } finally {
+    h.close();
+  }
+});
+
+test('a failed second backup cannot erase a verified backup made in the same clock tick', () => {
+  const h = makeService();
+  try {
+    const fixed = h.store.clock();
+    h.store.clock = () => fixed;
+    const first = h.service.backup('collision');
+    const verified = join(h.temp.dir, 'backups', first.file);
+    assert.ok(existsSync(verified));
+    const preflight = h.store.preflightBackup.bind(h.store);
+    h.store.preflightBackup = () => { throw new Error('injected verification failure'); };
+    assert.throws(() => h.service.backup('collision'), /backup failed/i);
+    h.store.preflightBackup = preflight;
+    assert.ok(existsSync(verified), 'the prior verified backup must survive');
+    assert.equal(h.store.preflightBackup(first.file).schemaVersion, '2');
+  } finally {
+    h.close();
   }
 });
 

@@ -48,7 +48,7 @@ test('documentation, release notes, upgrade docs and icon are present', () => {
 
 test('release identity and compatibility are consistent', () => {
   const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-  assert.equal(pkg.version, '1.0.0');
+  assert.equal(pkg.version, '1.1.0');
   assert.equal(pkg.version, STATE_VERSION);
   assert.equal(pkg.engines.node, '>=22.13.0');
   assert.equal(pkg.engines.dsh, '>=0.2.1-rc.3 <0.3.0');

@@ -1,5 +1,16 @@
 # 架构与信任边界
 
+## 0. v1.1 Workspace 模式（当前）
+
+- **绑定**：`meta.workspace.binding.id` 保存显式选择的官方 DSH Workspace ID；不是显示名称或路径。绑定与解绑只经 owner Host API，且解绑/换绑需要显式确认。
+- **成员权威**：每次工具调用、上下文注入、事件与规则操作都实时读取 `ctx.workspaceRegistry.get(id).sessionIds` 与 `archivedSessionIds`。晚加入自动生效；其他 Workspace、已移除、已归档、Workspace 缺失或 Registry 不可用一律失败关闭。没有成员缓存。
+- **主状态 Scope**：`scope_kind='workspace'`、`workspace_id=<真实 ID>`、`scope_id=workspace:<真实 ID>`。它与旧 v1 的 `local:<session>` / Life Scope 完全分离，不自动汇总。
+- **四种模式**：`shared`（读主状态、合法事件可小幅写主状态）、`read_only`（只读）、`isolated`（独立 `local:<session>` 状态）、`disabled`（不注入、不处理事件、工具无有效读写）。规则按 `(workspace_id, session_id)` 持久化，每次操作重新判断。
+- **回合后演化**：只订阅可信 `session/event`（`{ global: true }`，否则跨 Session 上下文过滤会漏事件）。仅接受 `turn/end` 且 `reason.kind === 'completed'`；`assistant/message` 中的 `tool-call` 块是唯一“工作量”证据。普通寒暄/纯文本零变化；不以字数或 Token 推断情绪。按 `host:<scope>:session:<id>:turn:<n>` 幂等，并受最小间隔与每小时上限约束。无额外 LLM、无定时器。
+- **共享审计**：Workspace Scope 的审计对非 admin 来源隐藏原始 summary、Session ID 与证据，只保留类型、时间与聚合 delta，避免跨会话原始原因泄露。
+- **备份**：`VACUUM INTO` 生成与 WAL 一致快照，再用 integrity/schema/table 预检；失败不留下未验证文件。每次生成唯一文件名，失败清理只影响本次候选，绝不覆盖/删除更早的已验证备份。迁移前同样先做该快照；迁移失败事务回滚。
+- **Schema 2**：仅新增 `scopes.scope_kind`、`scopes.workspace_id`、`session_rules`、`migration_log` 与索引；v1 行保留。v1 备份仍可 preflight 并在恢复打开时迁移。
+
 ## 1. 组件
 
 ```text
@@ -55,6 +66,7 @@ type + source + trust + summary + appraisal + deltas + before/after + evidence r
 
 `events.idempotency_key` 唯一：
 
+- Workspace 回合：`host:<scope>:session:<sessionId>:turn:<turn>`（同一 Session 回合只生效一次；晚到的 seq/重试返回 duplicate）；
 - Life：`life:<scope>:<activityId>:<revision or status>`；
 - Memory：`memory:<scope>:<memoryId>`（同一记忆永远只生效一次）；
 - 无引用模型评价：`model:<scope>:turn:<turn>`（一个回合最多一次，另有短窗口速率限制）；
@@ -150,7 +162,8 @@ type + source + trust + summary + appraisal + deltas + before/after + evidence r
 3. 管理权限使用 DSH “owner” 主体，没有独立角色系统；任何非 owner 认证 peer 都被拒绝。
 4. 共享场景目前只影响 State 管理页可见性，不合并数值/原因到其他场景。
 5. `databasePath` 修改需要重启插件；其他公开字段是 live/volatile。
-6. 当前 Schema 版本为 1；未来迁移框架已就位，但尚未需要多版本迁移。
+6. 当前 Schema 版本为 2；v1 → v2 迁移只增加列/表并通过迁移前一致快照与事务回滚保护。
 7. 兴趣别名只是 State 本地文本归一化；没有导入 Mneme 的实体/别名图。Memory 缺席时这反而避免静态耦合，但两套别名不会自动同步。
 8. `node:sqlite` 是 Node 22 的实验特性；启动时会显示 ExperimentalWarning，功能符合当前 Life 的同类用法。
 9. Life 曾绑定但暂时不可用时，State 对既有 Life 作用域 fail-closed，不会降级到本地身份；仅从未绑定过的会话使用本地私有作用域。
+10. QQ 群号/私聊号规则尚未实现：当前 DSH 没有可公开验证的 QQ Scene 映射；控制台只接受稳定 Session ID，不用显示名称猜测身份。工作区选择器也只显示标题和会话数，不把本机路径送到浏览器。
