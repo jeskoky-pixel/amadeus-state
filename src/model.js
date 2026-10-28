@@ -6,10 +6,19 @@
  */
 
 /** Schema version written into `meta.schema_version`. */
-export const STATE_SCHEMA_VERSION = '1';
+export const STATE_SCHEMA_VERSION = '2';
 
 /** Plugin version reported by health/status. */
-export const STATE_VERSION = '1.0.0';
+export const STATE_VERSION = '1.1.0';
+
+/** Session policy modes for a Workspace-bound installation. */
+export const SESSION_MODES = Object.freeze(['shared', 'read_only', 'isolated', 'disabled']);
+
+/** Default policy for a Workspace member without an explicit exception. */
+export const DEFAULT_SESSION_MODE = 'shared';
+
+/** Internal event type produced by a completed, tool-bearing model turn. */
+export const HOST_TURN_EVENT_TYPE = 'host_turn_work';
 
 /** Short-term state ranges. */
 export const RANGES = Object.freeze({
@@ -48,6 +57,11 @@ export const EVENT_EFFECTS = Object.freeze({
   memory_reference: Object.freeze({ mood: 1, energy: 0, curiosity: 2, interest: 2 }),
   life_completed: Object.freeze({ mood: 3, energy: -3, curiosity: 2, interest: 5 }),
   life_failed: Object.freeze({ mood: -5, energy: -3, curiosity: -1, interest: 0 }),
+  // Host-derived work evidence is deliberately neutral in valence: a turn with
+  // real tool work costs a little energy and slightly raises curiosity, but it
+  // never claims the interaction was pleasant.  No text length or token count
+  // participates in this effect.
+  host_turn_work: Object.freeze({ mood: 0, energy: -0.9, curiosity: 0.4, interest: 0 }),
 });
 
 /** Base class for explicit State failures. */

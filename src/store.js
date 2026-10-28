@@ -23,7 +23,7 @@ import {
   StateValidationError,
 } from './model.js';
 
-const REQUIRED_TABLES = [
+const V1_TABLES = [
   'meta',
   'scopes',
   'state_snapshots',
@@ -33,6 +33,13 @@ const REQUIRED_TABLES = [
   'scope_shares',
   'runtime_leases',
 ];
+
+const V2_TABLES = [...V1_TABLES, 'session_rules', 'migration_log'];
+
+const REQUIRED_TABLES = V2_TABLES;
+
+/** Columns added by the v2 migration. */
+const V2_SCOPE_COLUMNS = ['scope_kind', 'workspace_id'];
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS meta (
@@ -48,10 +55,13 @@ CREATE TABLE IF NOT EXISTS scopes (
   source TEXT NOT NULL CHECK (source IN ('life', 'local')),
   owner_session_id TEXT,
   binding_revision INTEGER,
+  scope_kind TEXT NOT NULL DEFAULT 'session' CHECK (scope_kind IN ('session', 'workspace')),
+  workspace_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_scopes_identity ON scopes (persona_id, scene_id);
+CREATE INDEX IF NOT EXISTS idx_scopes_workspace ON scopes (workspace_id, updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS state_snapshots (
   scope_id TEXT PRIMARY KEY REFERENCES scopes(id) ON DELETE CASCADE,
@@ -132,6 +142,26 @@ CREATE TABLE IF NOT EXISTS runtime_leases (
   owner_id TEXT NOT NULL,
   pid INTEGER NOT NULL,
   acquired_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS session_rules (
+  workspace_id TEXT NOT NULL,
+  session_id TEXT NOT NULL,
+  mode TEXT NOT NULL CHECK (mode IN ('shared', 'read_only', 'isolated', 'disabled')),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (workspace_id, session_id)
+);
+
+CREATE TABLE IF NOT EXISTS migration_log (
+  id TEXT PRIMARY KEY,
+  from_version TEXT NOT NULL,
+  to_version TEXT NOT NULL,
+  backup_file TEXT,
+  status TEXT NOT NULL,
+  started_at TEXT NOT NULL,
+  completed_at TEXT,
+  detail TEXT
 );
 `;
 
@@ -307,26 +337,126 @@ export class StateStore {
     const found = String(version.value);
     if (found === STATE_SCHEMA_VERSION) {
       this.assertTables();
-      this.assertColumns('scopes', ['id', 'persona_id', 'scene_id', 'privacy', 'source', 'updated_at']);
+      this.assertColumns('scopes', ['id', 'persona_id', 'scene_id', 'privacy', 'source', 'updated_at', ...V2_SCOPE_COLUMNS]);
       this.assertColumns('state_snapshots', ['scope_id', 'mood', 'energy', 'curiosity', 'revision', 'updated_at']);
       this.assertColumns('events', ['id', 'scope_id', 'idempotency_key', 'source', 'trust', 'delta_json', 'recorded_at']);
       this.assertColumns('interests', ['id', 'scope_id', 'normalized_name', 'baseline', 'activity', 'revision']);
+      this.assertColumns('session_rules', ['workspace_id', 'session_id', 'mode', 'updated_at']);
+      return;
+    }
+    if (found === '1') {
+      this.migrateV1ToV2();
       return;
     }
     if (Number(found) > Number(STATE_SCHEMA_VERSION)) {
-      this.backup('before-migration');
+      this.backup('before-migration', { verify: false });
       throw new StateStorageError(`State schema version ${found} is newer than this build (${STATE_SCHEMA_VERSION})`, {
         reason: 'unsupported_schema',
         found,
       });
     }
-    // There is no older supported schema in v1; a backup is still taken before
-    // refusing, so operators can inspect or restore it.
-    this.backup('before-migration');
+    this.backup('before-migration', { verify: false });
     throw new StateStorageError(`unsupported State schema version ${found}; this build supports ${STATE_SCHEMA_VERSION}`, {
       reason: 'unsupported_schema',
       found,
     });
+  }
+
+  /**
+   * Incrementally migrate a v1 database to v2.
+   *
+   * The migration is deliberately additive: v1 scopes keep their ids and all
+   * rows, and only two nullable/defaulted columns plus two new tables are
+   * added. It runs inside one immediate transaction after a consistent backup.
+   * Any failure rolls the transaction back, leaving the v1 file untouched; the
+   * startup path then refuses to use it instead of partially upgrading it.
+   */
+  migrateV1ToV2() {
+    // Verify the v1 shape before taking the snapshot so a corrupt file is never
+    // presented as a migratable database.
+    this.assertTables(V1_TABLES);
+    this.assertColumns('scopes', ['id', 'persona_id', 'scene_id', 'privacy', 'source', 'updated_at']);
+    let backup;
+    try {
+      backup = this.backup('before-v2-migration');
+    } catch (error) {
+      throw new StateStorageError(`State schema migration could not create its safety backup: ${String(error?.message ?? error)}`, {
+        reason: 'migration_backup_failed',
+      });
+    }
+    const before = {
+      scopes: Number(this.db.prepare('SELECT COUNT(*) AS n FROM scopes').get().n),
+      events: Number(this.db.prepare('SELECT COUNT(*) AS n FROM events').get().n),
+      interests: Number(this.db.prepare('SELECT COUNT(*) AS n FROM interests').get().n),
+    };
+    const startedAt = new Date(this.clock()).toISOString();
+    try {
+      this.transaction(() => {
+        this.db.exec('ALTER TABLE scopes ADD COLUMN scope_kind TEXT NOT NULL DEFAULT \'session\' CHECK (scope_kind IN (\'session\', \'workspace\'))');
+        this.db.exec('ALTER TABLE scopes ADD COLUMN workspace_id TEXT');
+        this.db.exec('CREATE INDEX IF NOT EXISTS idx_scopes_workspace ON scopes (workspace_id, updated_at DESC)');
+        this.db.exec(`
+          CREATE TABLE IF NOT EXISTS session_rules (
+            workspace_id TEXT NOT NULL,
+            session_id TEXT NOT NULL,
+            mode TEXT NOT NULL CHECK (mode IN ('shared', 'read_only', 'isolated', 'disabled')),
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (workspace_id, session_id)
+          );
+        `);
+        this.db.exec(`
+          CREATE TABLE IF NOT EXISTS migration_log (
+            id TEXT PRIMARY KEY,
+            from_version TEXT NOT NULL,
+            to_version TEXT NOT NULL,
+            backup_file TEXT,
+            status TEXT NOT NULL,
+            started_at TEXT NOT NULL,
+            completed_at TEXT,
+            detail TEXT
+          );
+        `);
+        this.db.prepare('UPDATE meta SET value = ? WHERE key = \'schema_version\'').run(STATE_SCHEMA_VERSION);
+        this.db
+          .prepare(
+            `INSERT INTO migration_log
+               (id, from_version, to_version, backup_file, status, started_at, completed_at, detail)
+             VALUES (?, '1', ?, ?, 'completed', ?, ?, ?)`,
+          )
+          .run(
+            `migration:${randomUUID()}`,
+            STATE_SCHEMA_VERSION,
+            backup.file,
+            startedAt,
+            new Date(this.clock()).toISOString(),
+            JSON.stringify({ before, preserved: true }),
+          );
+        const after = {
+          scopes: Number(this.db.prepare('SELECT COUNT(*) AS n FROM scopes').get().n),
+          events: Number(this.db.prepare('SELECT COUNT(*) AS n FROM events').get().n),
+          interests: Number(this.db.prepare('SELECT COUNT(*) AS n FROM interests').get().n),
+        };
+        if (JSON.stringify(after) !== JSON.stringify(before)) {
+          throw new StateStorageError('State migration row-count check failed; rolling back', {
+            reason: 'migration_row_count_changed',
+          });
+        }
+        const integrity = this.db.prepare('PRAGMA integrity_check').get();
+        if (Object.values(integrity ?? {})[0] !== 'ok') {
+          throw new StateStorageError('State migration integrity check failed; rolling back', {
+            reason: 'migration_integrity_failed',
+          });
+        }
+      });
+    } catch (error) {
+      throw new StateStorageError(
+        `State schema migration 1 → ${STATE_SCHEMA_VERSION} failed and was rolled back; the v1 database and its backup are unchanged: ${String(error?.message ?? error)}`,
+        { reason: 'migration_failed', backup: backup.file },
+      );
+    }
+    this.assertTables();
+    this.assertColumns('scopes', ['id', 'persona_id', 'scene_id', 'privacy', 'source', 'updated_at', ...V2_SCOPE_COLUMNS]);
   }
 
   /**
@@ -456,6 +586,168 @@ export class StateStore {
       .get(sessionId);
   }
 
+  /** @param {string} key - meta key. @returns {string|undefined} stored value. */
+  getMeta(key) {
+    this.assertOpen();
+    const row = this.db.prepare('SELECT value FROM meta WHERE key = ?').get(String(key));
+    return row === undefined ? undefined : String(row.value);
+  }
+
+  /**
+   * @param {string} key - meta key.
+   * @param {string} value - value.
+   * @param {boolean} [transactional] - wrap in a write transaction.
+   */
+  setMeta(key, value, transactional = true) {
+    this.assertOpen();
+    const write = () =>
+      this.db
+        .prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)')
+        .run(String(key), String(value));
+    if (transactional) this.transaction(write);
+    else write();
+  }
+
+  /** @param {string} key - meta key. */
+  deleteMeta(key) {
+    this.assertOpen();
+    this.transaction(() => {
+      this.db.prepare('DELETE FROM meta WHERE key = ?').run(String(key));
+    });
+  }
+
+  /**
+   * Read the durable Workspace binding.  The Workspace id is an opaque DSH id;
+   * no path or display name is stored as identity.
+   * @returns {{workspaceId: string, boundAt: string}|null} binding.
+   */
+  getWorkspaceBinding() {
+    const workspaceId = this.getMeta('workspace.binding.id');
+    if (typeof workspaceId !== 'string' || workspaceId.length === 0) return null;
+    return { workspaceId, boundAt: this.getMeta('workspace.binding.at') ?? null };
+  }
+
+  /**
+   * Persist one explicit binding.  Existing workspace scopes, events, and
+   * interests are never touched by this write.
+   * @param {string} workspaceId - validated DSH Workspace id.
+   * @param {string} boundAt - ISO timestamp.
+   */
+  setWorkspaceBinding(workspaceId, boundAt) {
+    this.transaction(() => {
+      this.setMeta('workspace.binding.id', workspaceId, false);
+      this.setMeta('workspace.binding.at', boundAt, false);
+    });
+  }
+
+  clearWorkspaceBinding() {
+    this.transaction(() => {
+      this.db.prepare("DELETE FROM meta WHERE key IN ('workspace.binding.id', 'workspace.binding.at')").run();
+    });
+  }
+
+  /**
+   * @param {string} workspaceId - Workspace id.
+   * @param {string} sessionId - Session id.
+   * @returns {Record<string, any>|undefined} exception row.
+   */
+  getSessionRule(workspaceId, sessionId) {
+    const row = this.db
+      .prepare('SELECT * FROM session_rules WHERE workspace_id = ? AND session_id = ?')
+      .get(workspaceId, sessionId);
+    return row === undefined
+      ? undefined
+      : { workspaceId: row.workspace_id, sessionId: row.session_id, mode: row.mode, createdAt: row.created_at, updatedAt: row.updated_at };
+  }
+
+  /** @param {string} workspaceId - Workspace id. @returns {Record<string, any>[]} rules. */
+  listSessionRules(workspaceId) {
+    return this.db
+      .prepare('SELECT * FROM session_rules WHERE workspace_id = ? ORDER BY updated_at DESC, session_id ASC')
+      .all(workspaceId)
+      .map((row) => ({
+        workspaceId: row.workspace_id,
+        sessionId: row.session_id,
+        mode: row.mode,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }));
+  }
+
+  /**
+   * Insert or replace one Session exception.
+   * @param {string} workspaceId - Workspace id.
+   * @param {string} sessionId - Session id.
+   * @param {string} mode - one of shared, read_only, isolated, disabled.
+   * @returns {Record<string, any>} saved row.
+   */
+  upsertSessionRule(workspaceId, sessionId, mode) {
+    const now = new Date(this.clock()).toISOString();
+    this.db
+      .prepare(
+        `INSERT INTO session_rules (workspace_id, session_id, mode, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(workspace_id, session_id)
+         DO UPDATE SET mode = excluded.mode, updated_at = excluded.updated_at`,
+      )
+      .run(workspaceId, sessionId, mode, now, now);
+    return this.getSessionRule(workspaceId, sessionId);
+  }
+
+  /** @param {string} workspaceId - Workspace id. @param {string} sessionId - Session id. */
+  deleteSessionRule(workspaceId, sessionId) {
+    const result = this.db
+      .prepare('DELETE FROM session_rules WHERE workspace_id = ? AND session_id = ?')
+      .run(workspaceId, sessionId);
+    return Number(result.changes) === 1;
+  }
+
+  /** @param {string} workspaceId - Workspace id. */
+  countSessionRules(workspaceId) {
+    const row = this.db.prepare('SELECT COUNT(*) AS n FROM session_rules WHERE workspace_id = ?').get(workspaceId);
+    return Number(row.n);
+  }
+
+  /**
+   * Most recent Host automatic event for one Session inside one scope.
+   * @param {string} scopeId - state scope.
+   * @param {string} sessionId - Session id.
+   * @returns {string|null} recorded-at ISO.
+   */
+  lastHostEventForSession(scopeId, sessionId) {
+    const row = this.db
+      .prepare("SELECT recorded_at FROM events WHERE scope_id = ? AND session_id = ? AND source = 'host' ORDER BY recorded_at DESC LIMIT 1")
+      .get(scopeId, sessionId);
+    return row === undefined ? null : String(row.recorded_at);
+  }
+
+  /** @param {string} scopeId - state scope. @param {string} sinceIso - lower bound. */
+  countHostEventsSince(scopeId, sinceIso) {
+    const row = this.db
+      .prepare("SELECT COUNT(*) AS n FROM events WHERE scope_id = ? AND source = 'host' AND recorded_at >= ?")
+      .get(scopeId, sinceIso);
+    return Number(row.n);
+  }
+
+  /** @returns {Record<string, any>[]} migration log newest-first, bounded. */
+  migrationInfo() {
+    try {
+      const rows = this.db.prepare('SELECT * FROM migration_log ORDER BY started_at DESC, id DESC LIMIT 20').all();
+      return rows.map((row) => ({
+        id: row.id,
+        fromVersion: row.from_version,
+        toVersion: row.to_version,
+        backupFile: row.backup_file ?? null,
+        status: row.status,
+        startedAt: row.started_at,
+        completedAt: row.completed_at ?? null,
+        detail: parseJson(row.detail, {}),
+      }));
+    } catch {
+      return [];
+    }
+  }
+
   /**
    * Ensure a scope exists and refresh its authorization metadata.
    * @param {Record<string, any>} identity - trusted identity.
@@ -500,8 +792,9 @@ export class StateStore {
       this.db
         .prepare(
           `INSERT OR IGNORE INTO scopes
-             (id, persona_id, scene_id, privacy, source, owner_session_id, binding_revision, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             (id, persona_id, scene_id, privacy, source, owner_session_id, binding_revision,
+              scope_kind, workspace_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           identity.scopeId,
@@ -511,6 +804,8 @@ export class StateStore {
           identity.kind,
           identity.ownerSessionId ?? null,
           identity.bindingRevision ?? null,
+          identity.scopeKind ?? 'session',
+          identity.workspaceId ?? null,
           now,
           now,
         );
@@ -828,27 +1123,72 @@ export class StateStore {
   }
 
   /**
-   * Create a consistent online backup. Returns a basename only, never a path.
+   * Create a consistent online backup with `VACUUM INTO`.
+   *
+   * A plain file copy of a WAL-mode database can omit committed rows that are
+   * still in `-wal`.  `VACUUM INTO` asks SQLite itself to serialize a
+   * transactionally consistent database, then the new file is verified for
+   * integrity, schema version, required tables, and row counts before it is
+   * reported as a successful backup.  Restore keeps its existing preflight,
+   * safety-backup, atomic-replace, and rollback guarantees.
    * @param {string} reason - label for the file name.
-   * @returns {{file: string, createdAt: string}} backup info.
+   * @returns {{file: string, createdAt: string}} verified backup info.
    */
-  backup(reason = 'manual') {
+  backup(reason = 'manual', { verify = true } = {}) {
     if (this.databasePath === ':memory:') throw new StateStorageError('in-memory State databases cannot be backed up');
+    this.assertOpen();
     const safeReason = String(reason).replace(/[^a-z0-9-]+/gi, '-').slice(0, 40) || 'manual';
     const dir = join(dirname(this.databasePath), 'backups');
     mkdirSync(dir, { recursive: true, mode: 0o700 });
-    try {
-      this.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
-    } catch {
-      // A read-only or busy connection can still produce a copy; the copy is
-      // verified by SQLite when restored.
-    }
     const stamp = new Date(this.clock()).toISOString().replace(/[:.]/g, '-');
-    const base = `state-${safeReason}-${stamp}.sqlite`;
-    const target = join(dir, base);
-    copyFileSync(this.databasePath, target);
-    this.pruneBackups(dir);
-    return { file: base, createdAt: new Date(this.clock()).toISOString() };
+    // A fixed clock can produce the same reason+timestamp twice.  The unique
+    // suffix makes every generated backup its own file, so a later failed
+    // attempt can never replace or delete an earlier verified backup.
+    let base;
+    let target;
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      base = `state-${safeReason}-${stamp}-${randomUUID()}.sqlite`;
+      target = join(dir, base);
+      if (!existsSync(target)) break;
+      base = undefined;
+      target = undefined;
+    }
+    if (base === undefined || target === undefined) {
+      throw new StateStorageError('State backup could not allocate a unique filename', {
+        reason: 'backup_name_collision',
+      });
+    }
+    const temp = `${target}.vacuum-${randomUUID()}.tmp`;
+    let installed = false;
+    try {
+      if (existsSync(temp)) unlinkSync(temp);
+      // SQLite writes a complete, checkpoint-independent snapshot into `temp`.
+      // This includes committed WAL frames but excludes uncommitted writes.
+      this.db.prepare('VACUUM INTO ?').run(temp);
+      if (!existsSync(temp) || statSync(temp).size === 0) {
+        throw new StateStorageError('SQLite produced an empty backup', { reason: 'backup_empty' });
+      }
+      renameSync(temp, target);
+      installed = true;
+      // Verification happens before success is reported.  A failed check
+      // removes only this candidate rather than leaving a misleading backup
+      // entry, and never touches an earlier successful file.
+      // The unsupported-schema refusal path asks for the consistent snapshot
+      // without this build's preflight because it cannot validate a future
+      // schema; it never reports that backup as a successful restore target.
+      if (verify) this.preflightBackup(base);
+      this.pruneBackups(dir);
+      return { file: base, createdAt: new Date(this.clock()).toISOString() };
+    } catch (error) {
+      try { if (existsSync(temp)) unlinkSync(temp); } catch { /* best effort */ }
+      if (installed) {
+        try { if (existsSync(target)) unlinkSync(target); } catch { /* best effort */ }
+      }
+      if (error instanceof StateStorageError) throw error;
+      throw new StateStorageError(`State backup failed: ${String(error?.message ?? error).slice(0, 300)}`, {
+        reason: 'backup_failed',
+      });
+    }
   }
 
   /** @param {string} dir - backup directory. */
@@ -924,7 +1264,7 @@ export class StateStore {
         throw new StateStorageError('State backup has no schema version', { reason: 'backup_missing_schema' });
       }
       const found = String(version.value);
-      if (found !== STATE_SCHEMA_VERSION) {
+      if (found !== '1' && found !== STATE_SCHEMA_VERSION) {
         throw new StateStorageError(`State backup schema ${found} is not supported by this build (${STATE_SCHEMA_VERSION})`, {
           reason: 'backup_unsupported_schema',
           found,
@@ -933,7 +1273,8 @@ export class StateStore {
       const tables = new Set(
         db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((row) => String(row.name)),
       );
-      const missing = REQUIRED_TABLES.filter((name) => !tables.has(name));
+      const expectedTables = found === '1' ? V1_TABLES : V2_TABLES;
+      const missing = expectedTables.filter((name) => !tables.has(name));
       if (missing.length > 0) {
         throw new StateStorageError('State backup is missing tables', {
           reason: 'backup_missing_tables',
@@ -941,7 +1282,7 @@ export class StateStore {
         });
       }
       const requiredColumns = {
-        scopes: ['id', 'persona_id', 'scene_id', 'privacy', 'source', 'updated_at'],
+        scopes: ['id', 'persona_id', 'scene_id', 'privacy', 'source', 'updated_at', ...(found === '1' ? [] : V2_SCOPE_COLUMNS)],
         state_snapshots: ['scope_id', 'mood', 'energy', 'curiosity', 'revision', 'updated_at'],
         events: ['id', 'scope_id', 'idempotency_key', 'source', 'trust', 'delta_json', 'recorded_at'],
         interests: ['id', 'scope_id', 'normalized_name', 'baseline', 'activity', 'revision'],
@@ -1102,8 +1443,10 @@ export class StateStore {
     this.assertOpen();
     const counts = {
       scopes: Number(this.db.prepare('SELECT COUNT(*) AS n FROM scopes').get().n),
+      workspaceScopes: Number(this.db.prepare("SELECT COUNT(*) AS n FROM scopes WHERE scope_kind = 'workspace'").get().n),
       events: Number(this.db.prepare('SELECT COUNT(*) AS n FROM events').get().n),
       interests: Number(this.db.prepare('SELECT COUNT(*) AS n FROM interests').get().n),
+      sessionRules: Number(this.db.prepare('SELECT COUNT(*) AS n FROM session_rules').get().n),
     };
     const version = this.db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get();
     return {

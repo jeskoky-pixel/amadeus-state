@@ -1,7 +1,7 @@
 {
   "name": "@amadeus/state",
-  "version": "1.0.0",
-  "description": "Amadeus State: persistent Mood, Energy, Curiosity, and interests for DeepSeek Harness, with a native settings page.",
+  "version": "1.1.0",
+  "description": "Amadeus State: Workspace-bound shared Mood, Energy, Curiosity, and interests for DeepSeek Harness, with a seven-page native console.",
   "private": true,
   "license": "UNLICENSED",
   "type": "module",

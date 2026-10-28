@@ -127,17 +127,17 @@ export const CONFIG_FIELDS = [
   {
     key: 'contextInjectionMode',
     type: 'enum',
-    enum: ['off', 'brief', 'state_interests'],
+    enum: ['off', 'brief', 'state_interests', 'detailed'],
     default: 'brief',
     restart: false,
     group: 'common',
     zh: {
       label: '动态上下文注入',
-      help: '关闭、简短状态，或状态加相关兴趣。内容有字符上限，并只读取当前会话获授权的场景。',
+      help: '关闭、简短状态、详细状态（含相关兴趣），或旧版的 state_interests。内容有字符上限，并只读取当前会话获授权的作用域。',
     },
     en: {
       label: 'Dynamic context',
-      help: 'Off, a brief state line, or state plus relevant interests. Content is length-capped and reads only the current Session\'s authorized scene.',
+      help: 'Off, a brief state line, a detailed state plus relevant interests, or legacy state_interests. Content is length-capped and reads only the current Session\'s authorized scope.',
     },
   },
   {
@@ -153,6 +153,77 @@ export const CONFIG_FIELDS = [
     en: {
       label: 'Automatic interest updates',
       help: 'Lets legitimate events update recent activity; manual long-term preferences are not overwritten by ordinary events.',
+    },
+  },
+  {
+    key: 'autoEventProcessingEnabled',
+    type: 'boolean',
+    default: true,
+    restart: false,
+    group: 'common',
+    zh: {
+      label: '回合完成后自动演化',
+      help: '只处理可信的已完成真实模型回合；仅有工具工作证据的回合产生很小的精力/好奇变化，普通寒暄保持零变化。不会额外调用模型。',
+    },
+    en: {
+      label: 'Automatic post-turn evolution',
+      help: 'Processes only completed real model turns from trusted Host events. Turns with tool-work evidence produce a tiny energy/curiosity change; ordinary greetings stay unchanged. No extra model call is made.',
+    },
+  },
+  {
+    key: 'sharedEventWeight',
+    type: 'number',
+    default: 0.35,
+    min: 0.05,
+    max: 1,
+    step: 0.05,
+    restart: false,
+    group: 'common',
+    zh: {
+      label: '单会话对共享主状态的最大影响',
+      help: '缩放工作区共享模式下单个会话事件的影响，防止高频群聊无限控制主状态；独立状态不受此限。',
+    },
+    en: {
+      label: 'Per-Session effect on shared state',
+      help: 'Scales one Session\'s event effect on the Workspace main state so a busy group cannot dominate it. Isolated state is not scaled by this.',
+    },
+  },
+  {
+    key: 'autoEventMinIntervalSeconds',
+    type: 'number',
+    default: 180,
+    min: 0,
+    max: 3600,
+    step: 30,
+    unit: 'seconds',
+    restart: false,
+    group: 'advanced',
+    zh: {
+      label: '自动演化最小间隔',
+      help: '同一会话两次自动状态演化之间的最小秒数；0 表示不设间隔，仍受每小时上限约束。',
+    },
+    en: {
+      label: 'Minimum auto-evolution interval',
+      help: 'Minimum seconds between two automatic evolutions from one Session; 0 disables the interval, while the hourly cap still applies.',
+    },
+  },
+  {
+    key: 'autoEventMaxPerHour',
+    type: 'number',
+    default: 12,
+    min: 0,
+    max: 120,
+    step: 1,
+    unit: 'events',
+    restart: false,
+    group: 'advanced',
+    zh: {
+      label: '自动演化每小时上限',
+      help: '每个状态作用域每小时最多接受的宿主自动事件数；0 表示完全停用自动回合演化。',
+    },
+    en: {
+      label: 'Hourly auto-evolution cap',
+      help: 'Maximum Host automatic events per state scope per hour; 0 disables automatic post-turn evolution entirely.',
     },
   },
   {

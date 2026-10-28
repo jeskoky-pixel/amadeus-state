@@ -22,12 +22,13 @@ State 只拥有自己的 SQLite 数据库：
 
 ## 自动备份
 
-- 打开已有数据库时，如果 Schema 版本不兼容，会先复制一份 `backups/state-before-migration-*.sqlite`，然后拒绝使用或执行受支持迁移。
+- 打开已有数据库时，如果 Schema 版本不兼容，会先用 `VACUUM INTO` 创建 `backups/state-before-migration-*.sqlite` 一致性快照，然后拒绝使用或执行受支持迁移。
 - **重置当前状态到基准** 前会创建 `backups/state-before-reset-*.sqlite`。
 - **从备份恢复** 前会创建 `backups/state-before-restore-*.sqlite` 安全备份。
-- 设置页 **运行诊断 → 创建数据库备份** 创建 `backups/state-manual-*.sqlite`。
+- 设置页 **数据与诊断 → 创建数据库备份** 创建 `backups/state-manual-*.sqlite`。
 - 每个数据库目录最多保留 5 个备份（按修改时间修剪）。
-- 备份是 SQLite 一致性文件副本；恢复时先停止 DSH/插件写入。
+- v1.1 起备份由 SQLite `VACUUM INTO` 生成，包含已提交但尚未 checkpoint 的 WAL 行；生成后立即验证 `integrity_check`、Schema、必需表和列，验证失败会删除候选文件并报错，不会把未验证文件列为可恢复备份。
+- 每次备份的文件名包含随机唯一后缀，即使系统时钟相同且 reason 相同也不会覆盖已有备份；失败清理只删除本次候选文件，不触碰更早的已验证备份。
 
 ## 手动备份
 
@@ -39,7 +40,7 @@ State 只拥有自己的 SQLite 数据库：
 
 ### 通过 GUI 恢复（推荐）
 
-1. 打开 **设置 → Amadeus 状态 → 运行诊断**。
+1. 打开 **设置 → Amadeus 状态 → 数据与诊断**。
 2. 在 **数据库备份与恢复** 中确认备份列表；需要时可先点 **创建数据库备份**。
 3. 选择一个备份，点击 **从备份恢复**，阅读并确认高风险操作。
 4. Host 会先验证备份的 `integrity_check`、Schema 版本、必需表和列，然后创建 `state-before-restore-*.sqlite` 安全备份，关闭当前数据库。
@@ -62,14 +63,15 @@ State 只拥有自己的 SQLite 数据库：
 
 ## 迁移
 
-- 当前 Schema 版本为 `1`。
+- 当前 Schema 版本为 `2`。
 - 打开已有文件时先执行 `PRAGMA integrity_check`，再读取 `meta.schema_version`。
-- 不兼容/较新版本会先备份再拒绝；未来受支持迁移会在单个事务中执行并重新校验表。
-- 迁移失败会回滚，原始数据库保留。
+- v1 → v2 只增加列/表；迁移前用 `VACUUM INTO` 做一致性快照，迁移在单个事务中执行并比较行数/完整性。
+- 迁移失败会回滚，原始 v1 数据库与迁移前快照保留；插件拒绝使用而不是部分升级。
+- v1 备份仍可 preflight；恢复后重新打开时执行迁移。回滚到 v1.0 时使用迁移前快照或旧版本匹配备份，不要手工改 `meta.schema_version`。
 
 ## 升级插件版本
 
-当前正式版本为 `1.0.0`，Schema `1`。升级前：
+当前候选版本为 `1.1.0`，Schema `2`。升级前：
 
 1. 记录当前版本、Schema 和 tarball SHA-256。
 2. 创建 `state.sqlite` 备份并保留旧 tarball/`PACKAGE_INFO.json`。

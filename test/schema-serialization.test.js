@@ -82,7 +82,7 @@ test('Config.toJSON emits a real Schemastery uid/refs envelope with no inline sc
   assert.equal(contextMode.type, 'union');
   assert.deepEqual(
     contextMode.list.map((uid) => envelope.refs[uid].value),
-    ['off', 'brief', 'state_interests'],
+    ['off', 'brief', 'state_interests', 'detailed'],
   );
   // A fresh call must not leak refs from a previous serialization.
   const second = Config.toJSON();
@@ -197,5 +197,3 @@ test('official Schemastery rehydrates the exact Config.toJSON envelope and full 
   assert.equal(parsed.contextInjectionMode.get(), 'brief');
   assert.equal(parsed.stateEvolutionEnabled.get(), true);
 });
-
-

@@ -67,6 +67,13 @@ export function apply(ctx, rawConfig = {}) {
       store,
       getConfig,
       getLife,
+      getRegistry: () => {
+        try {
+          return ctx.get?.('workspaceRegistry') ?? ctx.workspaceRegistry;
+        } catch {
+          return undefined;
+        }
+      },
       memory,
       logger: ctx.logger,
       version: STATE_VERSION,
@@ -74,6 +81,7 @@ export function apply(ctx, rawConfig = {}) {
     });
     registerTools(ctx, service);
     registerStateContext(ctx, service, getConfig);
+    registerSessionObserver(ctx, service);
     mountHttp(ctx, service);
     ctx.provide('amadeusState', {
       getHealth: () => service.health(),
@@ -120,6 +128,43 @@ export function apply(ctx, rawConfig = {}) {
     } catch (secondary) {
       ctx.logger?.error?.(`amadeus-state: degraded surface incomplete: ${safeError(secondary)}`);
     }
+  }
+}
+
+/**
+ * Subscribe to the trusted Session event feed.  This is an observer on the
+ * existing DSH event-sourced log, never a second agent loop: it performs one
+ * bounded, idempotent write on a completed tool-bearing turn and does nothing
+ * for plain conversation.  The subscription is optional; State still works
+ * when the Session service is absent.
+ * @param {Record<string, any>} ctx - Cordis context.
+ * @param {import('./service.js').StateService} service - State service.
+ */
+export function registerSessionObserver(ctx, service) {
+  if (typeof ctx.on !== 'function') return undefined;
+  try {
+    // `session/event` is dispatched in the emitting Session's context. Without
+    // `{ global: true }` Cordis's context filter can hide events from Sessions
+    // outside the plugin's own context, which would make automatic Workspace
+    // evolution silently miss most conversations.
+    const dispose = ctx.on(
+      'session/event',
+      (session, event) => {
+        try {
+          service.observeSessionEvent(session, event);
+        } catch (error) {
+          ctx.logger?.warn?.(`amadeus-state: session event observer failed: ${safeError(error)}`);
+        }
+      },
+      { global: true },
+    );
+    if (typeof ctx.effect === 'function') {
+      ctx.effect(() => (typeof dispose === 'function' ? dispose : undefined), 'amadeus-state: session event observer');
+    }
+    return dispose;
+  } catch (error) {
+    ctx.logger?.warn?.(`amadeus-state: session event observer unavailable: ${safeError(error)}`);
+    return undefined;
   }
 }
 
@@ -191,6 +236,45 @@ function degradedService({ ctx, getConfig, life, memory, failure, startedAt }) {
       note: 'State storage is unavailable; only static degraded health is reported.',
     }),
     scopeAuthorization: () => ({ authorized: false, reason: 'storage_unavailable', source: 'unknown' }),
+    binding: () => null,
+    bindingStatus: () => ({
+      bound: false,
+      state: 'degraded',
+      legacyPrivateMode: true,
+      message: 'State storage is unavailable; no binding can be read.',
+    }),
+    workspaces: () => ({ available: false, workspaces: [] }),
+    sessionRulesOverview: () => ({
+      binding: { bound: false, state: 'degraded' },
+      sessions: [],
+      rules: [],
+      defaultMode: 'shared',
+      modes: ['shared', 'read_only', 'isolated', 'disabled'],
+      registryAvailable: false,
+      archivedCount: 0,
+    }),
+    workspaceOverview: () => ({
+      binding: { bound: false, state: 'degraded' },
+      workspaces: { available: false, workspaces: [] },
+      rules: [],
+      sessions: [],
+      main: null,
+      migration: [],
+      schema: { error: safeError(failure) },
+      legacyNote: 'State storage is unavailable.',
+      qqSceneRules: { implemented: false, reason: 'storage_unavailable' },
+      defaultMode: 'shared',
+      modes: ['shared', 'read_only', 'isolated', 'disabled'],
+      registryAvailable: false,
+      archivedCount: 0,
+    }),
+    bindWorkspace: unavailable,
+    unbindWorkspace: unavailable,
+    setSessionRule: unavailable,
+    clearSessionRule: unavailable,
+    effectiveForSession: () => ({ allowed: false, state: 'degraded', mode: 'denied', writable: false, reason: 'storage_unavailable' }),
+    effectiveForWrite: unavailable,
+    observeSessionEvent: () => ({ applied: false, reason: 'storage_unavailable' }),
     viewForSession: unavailable,
     adminView: unavailable,
     listAllInterests: unavailable,

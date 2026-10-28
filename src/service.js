@@ -10,13 +10,17 @@
 
 import { randomUUID } from 'node:crypto';
 import {
+  DEFAULT_SESSION_MODE,
   EVENT_EFFECTS,
   EVENT_TYPES,
+  HOST_TURN_EVENT_TYPE,
+  SESSION_MODES,
   StateConflictError,
   StateDisabledError,
   StateIntegrationError,
   StateNotFoundError,
   StateUnauthorizedError,
+  StateUnavailableError,
   StateValidationError,
   clamp,
   iso,
@@ -44,7 +48,21 @@ import {
   rankInterests,
   requireTopic,
 } from './interests.js';
-import { isLifeNotFound, resolveSessionIdentity, scopeView } from './scope.js';
+import {
+  isLifeNotFound,
+  requireSessionId,
+  requireWorkspaceId,
+  resolveSessionIdentity,
+  scopeView,
+  workspaceIdentity,
+  isolatedIdentity,
+} from './scope.js';
+import {
+  listWorkspaces as listRegistryWorkspaces,
+  liveWorkspace,
+  resolveWorkspaceSession,
+  safeWorkspace,
+} from './workspace.js';
 
 const MODEL_RATE_LIMIT = 6;
 const INTEGRATION_TIMEOUT_MS = 5_000;
@@ -92,10 +110,21 @@ export class StateService {
   /**
    * @param {{store: import('./store.js').StateStore, getConfig: () => Record<string, any>, getLife?: () => Record<string, any>|undefined, memory?: Record<string, any>, clock?: () => number, logger?: Record<string, any>, version: string, startedAt: string}} options - service options.
    */
-  constructor({ store, getConfig, getLife = () => undefined, memory, clock = () => Date.now(), logger, version, startedAt }) {
+  constructor({
+    store,
+    getConfig,
+    getLife = () => undefined,
+    getRegistry = () => undefined,
+    memory,
+    clock = () => Date.now(),
+    logger,
+    version,
+    startedAt,
+  }) {
     this.store = store;
     this.getConfig = getConfig;
     this.getLife = getLife;
+    this.getRegistry = getRegistry;
     this.memory = memory;
     this.clock = clock;
     this.logger = logger;
@@ -104,6 +133,7 @@ export class StateService {
     this.lastError = null;
     this.lastEventAt = null;
     this.lastIntegrityError = null;
+    this.turnObservations = new Map();
     // Diagnostics should show the last durable event after a restart too. This
     // is a bounded startup scan; per-turn reads remain a single snapshot read.
     try {
@@ -121,6 +151,236 @@ export class StateService {
   /** @returns {Record<string, any>} effective normalized config. */
   config() {
     return this.getConfig();
+  }
+
+  /** @returns {Record<string, any>} live Workspace registry when available. */
+  registry() {
+    try {
+      return this.getRegistry();
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** @returns {{workspaceId: string, boundAt: string|null}|null} durable binding. */
+  binding() {
+    try {
+      return this.store.getWorkspaceBinding();
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Safe live binding diagnostics.  It never exposes paths and never binds a
+   * replacement Workspace automatically.
+   * @returns {Record<string, unknown>} status.
+   */
+  bindingStatus() {
+    const binding = this.binding();
+    if (binding === null) {
+      return {
+        bound: false,
+        state: 'unbound',
+        legacyPrivateMode: true,
+        message: '未绑定 Workspace；保持 v1 的每会话私有状态。',
+      };
+    }
+    const registry = this.registry();
+    const list = listRegistryWorkspaces(registry);
+    if (!list.available) {
+      return {
+        bound: true,
+        workspaceId: binding.workspaceId,
+        boundAt: binding.boundAt,
+        state: 'registry_unavailable',
+        legacyPrivateMode: false,
+        message: '已绑定 Workspace，但当前 DSH 没有可用的 workspaceRegistry；所有工作区会话失败关闭。',
+      };
+    }
+    const entity = liveWorkspace(registry, binding.workspaceId);
+    if (entity === null) {
+      return {
+        bound: true,
+        workspaceId: binding.workspaceId,
+        boundAt: binding.boundAt,
+        state: 'workspace_missing',
+        legacyPrivateMode: false,
+        message: '已绑定的 Workspace 已删除或失效；不会自动绑定其他 Workspace。',
+      };
+    }
+    const record = safeWorkspace(entity);
+    return {
+      bound: true,
+      workspaceId: binding.workspaceId,
+      boundAt: binding.boundAt,
+      title: record?.title ?? '',
+      state: 'ready',
+      sessionCount: record?.sessionIds.length ?? 0,
+      legacyPrivateMode: false,
+    };
+  }
+
+  /** @returns {{available: boolean, workspaces: {workspaceId: string, title: string, sessionCount: number}[]}} picker list. */
+  workspaces() {
+    return listRegistryWorkspaces(this.registry());
+  }
+
+  /**
+   * Bind one Workspace explicitly.  A different existing binding needs a
+   * separate confirmation and is never replaced silently.
+   * @param {{workspaceId: string, confirm?: string}} input - binding request.
+   * @returns {Record<string, unknown>} status.
+   */
+  bindWorkspace(input) {
+    const workspaceId = requireWorkspaceId(input?.workspaceId);
+    const registry = this.registry();
+    if (!registry) throw new StateUnavailableError('workspaceRegistry is unavailable in this DSH build');
+    const entity = liveWorkspace(registry, workspaceId);
+    if (entity === null) throw new StateNotFoundError('the selected DSH Workspace does not exist');
+    const current = this.binding();
+    if (current !== null && current.workspaceId !== workspaceId && input?.confirm !== 'REBIND') {
+      throw new StateValidationError('rebinding to a different Workspace requires confirm: REBIND');
+    }
+    const identity = workspaceIdentity(workspaceId);
+    this.ensureScope(identity);
+    this.store.setWorkspaceBinding(workspaceId, iso(this.clock()));
+    this.turnObservations.clear();
+    return this.bindingStatus();
+  }
+
+  /**
+   * Explicitly unbind.  Old Workspace and Session data stays intact; the
+   * plugin returns to the legacy per-Session private behavior.
+   * @param {{confirm?: string}} input - confirmation.
+   * @returns {Record<string, unknown>} status.
+   */
+  unbindWorkspace(input = {}) {
+    if (input.confirm !== 'UNBIND') throw new StateValidationError('explicit UNBIND confirmation is required');
+    this.store.clearWorkspaceBinding();
+    this.turnObservations.clear();
+    return this.bindingStatus();
+  }
+
+  /**
+   * Resolve the effective policy and state identity for one trusted Session.
+   * This runs on every tool call, injection, and event; no access decision is
+   * cached.  Unbound installations preserve v1 private behavior.
+   * @param {string} sessionId - trusted DSH Session id.
+   * @returns {Record<string, any>} effective access.
+   */
+  effectiveForSession(sessionId) {
+    const session = requireSessionId(sessionId);
+    const binding = this.binding();
+    if (binding === null) {
+      let identity;
+      try {
+        identity = this.identityForSession(session);
+      } catch (error) {
+        return {
+          allowed: false,
+          state: 'legacy_denied',
+          mode: 'legacy',
+          reason: safeError(error),
+          detail: String(error?.message ?? error).slice(0, 300),
+          identity: null,
+        };
+      }
+      return {
+        allowed: true,
+        state: 'legacy_private',
+        mode: 'legacy',
+        writable: true,
+        workspaceId: null,
+        identity,
+        scopeKind: 'session',
+        note: 'unbound legacy private scope',
+      };
+    }
+    const registry = this.registry();
+    const resolved = resolveWorkspaceSession({ registry, workspaceId: binding.workspaceId, sessionId: session });
+    if (resolved.state === 'registry_unavailable') {
+      return { allowed: false, state: resolved.state, mode: 'denied', writable: false, workspaceId: binding.workspaceId, reason: 'workspace_registry_unavailable' };
+    }
+    if (resolved.state === 'workspace_missing') {
+      return { allowed: false, state: resolved.state, mode: 'denied', writable: false, workspaceId: binding.workspaceId, reason: 'workspace_missing' };
+    }
+    if (resolved.state === 'archived') {
+      return { allowed: false, state: resolved.state, mode: 'denied', writable: false, workspaceId: binding.workspaceId, reason: 'session_archived' };
+    }
+    if (resolved.state !== 'member') {
+      return {
+        allowed: false,
+        state: resolved.state,
+        mode: 'denied',
+        writable: false,
+        workspaceId: binding.workspaceId,
+        reason: resolved.state === 'other_workspace' ? 'session_in_other_workspace' : 'session_not_in_workspace',
+      };
+    }
+    const rule = this.store.getSessionRule(binding.workspaceId, session);
+    const mode = rule?.mode ?? DEFAULT_SESSION_MODE;
+    if (mode === 'disabled') {
+      return {
+        allowed: false,
+        state: 'disabled_by_rule',
+        mode,
+        writable: false,
+        workspaceId: binding.workspaceId,
+        reason: 'session_rule_disabled',
+        rule: rule ?? null,
+      };
+    }
+    if (mode === 'isolated') {
+      return {
+        allowed: true,
+        state: 'active',
+        mode,
+        writable: true,
+        workspaceId: binding.workspaceId,
+        identity: isolatedIdentity(session),
+        scopeKind: 'session',
+        rule: rule ?? null,
+      };
+    }
+    return {
+      allowed: true,
+      state: 'active',
+      mode,
+      writable: mode === 'shared',
+      readOnly: mode === 'read_only',
+      workspaceId: binding.workspaceId,
+      identity: workspaceIdentity(binding.workspaceId),
+      scopeKind: 'workspace',
+      rule: rule ?? null,
+    };
+  }
+
+  /**
+   * Fail closed when the current effective policy does not allow the action.
+   * @param {Record<string, any>} effective - resolved access.
+   * @param {'read'|'write'} action - requested action.
+   */
+  requireAccess(effective, action) {
+    if (!effective?.allowed) {
+      const reason = String(effective?.reason ?? effective?.state ?? 'not_authorized');
+      const detail = effective?.detail ? `: ${String(effective.detail).slice(0, 300)}` : '';
+      throw action === 'read'
+        ? new StateUnauthorizedError(`State is not available for this Session${detail}`, { reason })
+        : new StateDisabledError(`State writes are not allowed for this Session${detail}`, { reason });
+    }
+    if (action === 'write' && !effective.writable) {
+      throw new StateDisabledError('this Session is read-only for State; the shared state was not changed', {
+        mode: effective.mode,
+      });
+    }
+  }
+
+  /** @param {string} sessionId - trusted Session id. */
+  effectiveForWrite(sessionId) {
+    const effective = this.effectiveForSession(sessionId);
+    this.requireAccess(effective, 'write');
+    return effective;
   }
 
   /** @param {unknown} error - thrown value. */
@@ -179,9 +439,20 @@ export class StateService {
    * @returns {Record<string, any>} scoped view.
    */
   viewForSession(sessionId, { includeInterests = true, includeAudit = false } = {}) {
-    const identity = this.identityForSession(sessionId);
-    this.ensureScope(identity);
-    return this.buildView(identity, { includeInterests, includeAudit });
+    const effective = this.effectiveForSession(sessionId);
+    this.requireAccess(effective, 'read');
+    this.ensureScope(effective.identity);
+    return this.buildView(effective.identity, {
+      includeInterests,
+      includeAudit,
+      access: {
+        mode: effective.mode,
+        writable: effective.writable === true,
+        readOnly: effective.readOnly === true,
+        scopeKind: effective.scopeKind,
+        workspaceBound: effective.workspaceId !== null,
+      },
+    });
   }
 
   /**
@@ -208,9 +479,12 @@ export class StateService {
         unavailableReason: authorization.reason,
       };
     }
+    const isWorkspace = row.scope_kind === 'workspace';
     return this.buildView(
       {
         kind: row.source,
+        scopeKind: isWorkspace ? 'workspace' : 'session',
+        workspaceId: row.workspace_id ?? null,
         personaId: row.persona_id,
         sceneId: row.scene_id,
         privacy: row.privacy,
@@ -220,7 +494,16 @@ export class StateService {
         authorizationRef: 'admin',
         identitySource: 'admin',
       },
-      { includeInterests, includeAudit },
+      {
+        includeInterests,
+        includeAudit,
+        access: {
+          mode: isWorkspace ? 'workspace_admin' : 'session_admin',
+          writable: true,
+          scopeKind: isWorkspace ? 'workspace' : 'session',
+          workspaceBound: this.binding() !== null,
+        },
+      },
     );
   }
 
@@ -232,6 +515,17 @@ export class StateService {
    * @returns {{authorized: boolean, reason: string, source: string}} decision.
    */
   scopeAuthorization(row) {
+    if (row.scope_kind === 'workspace') {
+      const binding = this.binding();
+      if (binding === null) return { authorized: false, reason: 'workspace_not_bound', source: 'workspace' };
+      if (binding.workspaceId !== row.workspace_id) {
+        return { authorized: false, reason: 'workspace_binding_changed', source: 'workspace' };
+      }
+      if (liveWorkspace(this.registry(), row.workspace_id) === null) {
+        return { authorized: false, reason: 'workspace_missing', source: 'workspace' };
+      }
+      return { authorized: true, reason: 'active_workspace_binding', source: 'workspace' };
+    }
     if (row.source === 'local') return { authorized: true, reason: 'local_private', source: 'local' };
     const cfg = this.config();
     const life = this.getLife();
@@ -262,7 +556,7 @@ export class StateService {
    * @param {{includeInterests?: boolean, includeAudit?: boolean}} options - options.
    * @returns {Record<string, any>} view.
    */
-  buildView(identity, { includeInterests = true, includeAudit = false } = {}) {
+  buildView(identity, { includeInterests = true, includeAudit = false, access } = {}) {
     const cfg = this.config();
     const state = this.currentState(identity.scopeId);
     const explanation = describeState(state, cfg);
@@ -275,12 +569,20 @@ export class StateService {
     const view = {
       scope: {
         id: identity.scopeId,
+        kind: identity.scopeKind === 'workspace' ? 'workspace' : 'session',
+        workspaceId: identity.workspaceId ?? null,
         personaId: identity.personaId,
         sceneId: identity.sceneId,
         privacy: identity.privacy,
-        source: identity.kind,
+        source: identity.scopeKind === 'workspace' ? 'workspace' : identity.kind,
         bindingRevision: identity.bindingRevision ?? null,
         authorization: 'session',
+      },
+      access: access ?? {
+        mode: 'legacy',
+        writable: true,
+        scopeKind: identity.scopeKind === 'workspace' ? 'workspace' : 'session',
+        workspaceBound: false,
       },
       state: {
         ...pickState(state),
@@ -341,6 +643,8 @@ export class StateService {
    */
   auditPage(scopeId, page = {}) {
     const cfg = this.config();
+    const row = this.store.getScope(scopeId);
+    const sharedWorkspace = row?.scope_kind === 'workspace';
     const limit = Math.floor(clamp(Number(page.limit ?? cfg.auditPageSize), 1, 100));
     const offset = Math.max(0, Math.floor(Number(page.offset ?? 0)));
     const result = this.store.listEvents(scopeId, { limit, offset });
@@ -352,21 +656,27 @@ export class StateService {
         trust: event.trust,
         occurredAt: event.occurredAt,
         recordedAt: event.recordedAt,
-        summary: event.summary,
+        // A Workspace-shared audit may be read from another Session's surface:
+        // show aggregated deltas, never the originating Session's raw reason.
+        summary: sharedWorkspace && event.source !== 'admin'
+          ? '工作区共享事件（已汇总，不显示原始会话原因）'
+          : event.summary,
+        sessionId: sharedWorkspace ? null : event.sessionId,
         deltas: event.deltas,
         baselineDeltas: event.baselineDeltas,
         before: event.before,
         after: event.after,
         interestChanges: event.interestChanges.map((change) => ({
-          name: change.name,
+          name: sharedWorkspace ? '兴趣活跃度' : change.name,
           applied: change.applied,
           baselineApplied: change.baselineApplied,
         })),
-        evidenceRefs: Array.isArray(event.evidence) ? event.evidence.map((ref) => String(ref).slice(0, 160)) : [],
+        evidenceRefs: sharedWorkspace ? [] : Array.isArray(event.evidence) ? event.evidence.map((ref) => String(ref).slice(0, 160)) : [],
       })),
       total: result.total,
       limit,
       offset,
+      redacted: sharedWorkspace,
     };
   }
 
@@ -376,18 +686,38 @@ export class StateService {
    * @param {Record<string, any>} input - event input.
    * @returns {Promise<Record<string, any>>} result.
    */
-  async recordEvent(input) {
+  recordEventSync(input) {
     const cfg = this.config();
     if (!cfg.stateEvolutionEnabled && input.source !== 'admin') {
       throw new StateDisabledError('state evolution is disabled; the event was not applied');
     }
     const identity = input.identity;
     if (!identity || typeof identity.scopeId !== 'string') throw new StateUnauthorizedError('trusted identity is required');
-    if (!EVENT_TYPES.includes(input.type) && input.type !== 'admin_reset') {
+    const internalTypes = [...EVENT_TYPES, HOST_TURN_EVENT_TYPE];
+    if (!internalTypes.includes(input.type) && input.type !== 'admin_reset') {
       throw new StateValidationError(`unsupported event type: ${String(input.type)}`);
+    }
+    if (input.type === HOST_TURN_EVENT_TYPE && input.source !== 'host' && input.source !== 'admin') {
+      throw new StateValidationError('host work events can only come from a trusted Host turn');
     }
     if (input.source === 'model_appraisal' && !MODEL_UNREFERENCED_EVENT_TYPES.includes(input.type)) {
       throw new StateValidationError('model appraisals cannot claim completion-shaped event types');
+    }
+    // A cancellation or a degraded policy decision can arrive while an
+    // asynchronous integration call settles.  Re-check the live policy again
+    // immediately before any durable write.
+    const actorSessionId = input.identity?.sessionId ?? input.originSessionId;
+    if (actorSessionId && input.source !== 'admin') {
+      const current = this.effectiveForSession(actorSessionId);
+      if (!current.allowed || !current.writable) {
+        throw new StateDisabledError('State policy changed before this event was applied; nothing was written', {
+          mode: current.mode,
+          state: current.state,
+        });
+      }
+      if (current.identity.scopeId !== identity.scopeId) {
+        throw new StateUnauthorizedError('State policy resolved to a different scope before this event was applied');
+      }
     }
     const occurredAt = input.occurredAt ? iso(parseTimestamp(input.occurredAt)) : iso(this.clock());
     const summary = typeof input.summary === 'string' ? input.summary.trim().slice(0, 280) : '';
@@ -414,12 +744,21 @@ export class StateService {
         source: input.source,
         appraisal: input.appraisal ?? {},
         base: input.base,
+        scale: input.scale,
       });
       const interestChanges = [];
       let nextState = applied.state;
-      const interestDelta = Number(input.interestDelta ?? 0);
+      const interestDelta = Number(input.interestDelta ?? 0) * clamp(Number(input.scale ?? 1), 0, 1);
+      // A Workspace-shared scope is visible to every member.  An event topic
+      // from one private Session (model appraisal, Life description, Memory
+      // title) must not be promoted into a global interest without an explicit
+      // trusted public-visibility contract, which this DSH build does not
+      // provide.  Numeric state deltas may still aggregate; manual Owner
+      // interests are managed separately and are not affected.
+      const sharedScope = identity.scopeKind === 'workspace';
       if (
         cfg.autoInterestUpdate &&
+        !sharedScope &&
         input.topic !== undefined &&
         Number.isFinite(interestDelta) &&
         interestDelta !== 0 &&
@@ -451,7 +790,7 @@ export class StateService {
         after: pickState(nextState),
         interestChanges,
         evidence: Array.isArray(input.evidence) ? input.evidence.slice(0, 20) : [],
-        sessionId: identity.sessionId ?? null,
+        sessionId: identity.sessionId ?? input.originSessionId ?? null,
         personaId: identity.personaId,
         sceneId: identity.sceneId,
         occurredAt,
@@ -482,6 +821,17 @@ export class StateService {
       // Memory contract.
     }
     return result;
+  }
+
+  /**
+   * Async public spelling used by tools/integrations.  The write itself is
+   * synchronous so the trusted `session/event` observer never starts a second
+   * scheduling loop or leaves a floating promise.
+   * @param {Record<string, any>} input - event input.
+   * @returns {Promise<Record<string, any>>} result.
+   */
+  async recordEvent(input) {
+    return this.recordEventSync(input);
   }
 
   /**
@@ -561,8 +911,11 @@ export class StateService {
     }
     const sessionId = exec?.agent?.session?.id;
     if (typeof sessionId !== 'string' || !sessionId) throw new StateUnauthorizedError('State tools require an Agent Session');
-    const identity = this.identityForSession(sessionId);
+    const effective = this.effectiveForSession(sessionId);
+    this.requireAccess(effective, 'write');
+    const identity = effective.identity;
     this.ensureScope(identity);
+    const shared = effective.mode === 'shared';
 
     const appraisal = {
       valence: clamp(Number(args.valence ?? 0), -1, 1),
@@ -580,10 +933,10 @@ export class StateService {
     }
 
     if (args.activityId !== undefined) {
-      return this.appraiseLifeActivity({ exec, args, identity, appraisal, summary, cfg });
+      return this.appraiseLifeActivity({ exec, args, identity, appraisal, summary, cfg, effective });
     }
     if (args.memoryId !== undefined) {
-      return this.appraiseMemoryReference({ exec, args, identity, appraisal, summary, cfg });
+      return this.appraiseMemoryReference({ exec, args, identity, appraisal, summary, cfg, effective });
     }
 
     if (!MODEL_UNREFERENCED_EVENT_TYPES.includes(args.eventType)) {
@@ -596,12 +949,22 @@ export class StateService {
     // Memory reference (those are idempotent by reference instead).
     const rateWindowMs = Math.max(60_000, cfg.duplicateCooldownMinutes * 60_000);
     const recent = this.store.countEventsSince(identity.scopeId, 'model_appraisal', iso(this.clock() - rateWindowMs));
-    if (recent >= MODEL_RATE_LIMIT) {
+    // A shared Workspace scope must not let one busy Session monopolize the
+    // global state; the per-Session ceiling is stricter than the scope ceiling.
+    const sessionRecent = shared
+      ? this.store.countSessionEventsSince(identity.scopeId, sessionId, iso(this.clock() - rateWindowMs))
+      : 0;
+    const limit = shared ? Math.min(MODEL_RATE_LIMIT, 3) : MODEL_RATE_LIMIT;
+    if (recent >= MODEL_RATE_LIMIT || sessionRecent >= limit) {
       throw new StateValidationError('too many model appraisals in a short window; no state change applied');
     }
     const turn = turnOf(exec);
-    const idempotencyKey = `model:${identity.scopeId}:turn:${turn}`;
+    // A shared Workspace scope is addressed by many Sessions.  Session ids must
+    // separate turn-scoped idempotency keys; otherwise s1 turn 1 and s2 turn 1
+    // would collide and the second legitimate appraisal would be dropped.
+    const idempotencyKey = `model:${identity.scopeId}:session:${sessionId}:turn:${turn}`;
     const effect = EVENT_EFFECTS[args.eventType];
+    const scale = shared ? clamp(Number(cfg.sharedEventWeight), 0.05, 1) : 1;
     const result = await this.recordEvent({
       identity,
       type: args.eventType,
@@ -613,6 +976,8 @@ export class StateService {
       sourceRef: `session:${sessionId}:turn:${turn}`,
       topic: args.topic,
       interestDelta: effect.interest * 0.5,
+      scale,
+      originSessionId: sessionId,
       occurredAt: iso(this.clock()),
       exec,
     });
@@ -623,7 +988,7 @@ export class StateService {
    * @param {{exec: Record<string, any>, args: Record<string, any>, identity: Record<string, any>, appraisal: Record<string, any>, summary: string, cfg: Record<string, any>}} input - call.
    * @returns {Promise<Record<string, any>>} outcome.
    */
-  async appraiseLifeActivity({ exec, args, identity, appraisal, summary, cfg }) {
+  async appraiseLifeActivity({ exec, args, identity, appraisal, summary, cfg, effective }) {
     if (!cfg.lifeIntegrationEnabled) throw new StateIntegrationError('Life integration is disabled');
     const life = this.getLife();
     if (!life || typeof life.getActivityStatus !== 'function') {
@@ -655,11 +1020,17 @@ export class StateService {
         `Life activity is ${String(activityStatus)}, not completed or failed; nothing was counted`,
       );
     }
-    if (activity.personaId && activity.personaId !== identity.personaId) {
-      throw new StateUnauthorizedError('Life activity belongs to another Persona; refused');
-    }
-    if (activity.sceneId && activity.sceneId !== identity.sceneId) {
-      throw new StateUnauthorizedError('Life activity belongs to another Scene; refused');
+    // A Workspace-shared or isolated State identity is not a Life Persona
+    // identity.  The activity is already verified against this Session by
+    // `getActivityStatus(..., session:<id>)`; comparing it with the aggregate
+    // Workspace persona would reject every valid activity.
+    if (identity.kind === 'life') {
+      if (activity.personaId && activity.personaId !== identity.personaId) {
+        throw new StateUnauthorizedError('Life activity belongs to another Persona; refused');
+      }
+      if (activity.sceneId && activity.sceneId !== identity.sceneId) {
+        throw new StateUnauthorizedError('Life activity belongs to another Scene; refused');
+      }
     }
     const type = activityStatus === 'completed' ? 'life_completed' : 'life_failed';
     const effect = EVENT_EFFECTS[type];
@@ -683,6 +1054,8 @@ export class StateService {
           : [],
       topic,
       interestDelta: effect.interest,
+      scale: effective?.mode === 'shared' ? clamp(Number(cfg.sharedEventWeight), 0.05, 1) : 1,
+      originSessionId: sessionId,
       occurredAt: activity.updatedAt ?? iso(this.clock()),
       exec,
     });
@@ -693,7 +1066,7 @@ export class StateService {
    * @param {{exec: Record<string, any>, args: Record<string, any>, identity: Record<string, any>, appraisal: Record<string, any>, summary: string, cfg: Record<string, any>}} input - call.
    * @returns {Promise<Record<string, any>>} outcome.
    */
-  async appraiseMemoryReference({ exec, args, identity, appraisal, summary, cfg }) {
+  async appraiseMemoryReference({ exec, args, identity, appraisal, summary, cfg, effective }) {
     if (!cfg.memoryIntegrationEnabled) throw new StateIntegrationError('Memory integration is disabled');
     if (!this.memory || typeof this.memory.getMemory !== 'function') {
       throw new StateIntegrationError('Memory is not available; the reference was not accepted');
@@ -725,6 +1098,8 @@ export class StateService {
       evidence: ['memory:reference'],
       topic: args.topic ?? memory.title,
       interestDelta: effect.interest,
+      scale: effective?.mode === 'shared' ? clamp(Number(cfg.sharedEventWeight), 0.05, 1) : 1,
+      originSessionId: exec?.agent?.session?.id,
       occurredAt: iso(this.clock()),
       exec,
     });
@@ -914,6 +1289,236 @@ export class StateService {
   }
 
   /**
+   * Owner overview for the 会话规则 page.  It reads the live registry each
+   * time; archived or removed Sessions are never re-authorized from a cache.
+   * @returns {Record<string, any>} workspace and session policy view.
+   */
+  sessionRulesOverview() {
+    const status = this.bindingStatus();
+    const output = {
+      binding: status,
+      sessions: [],
+      rules: [],
+      defaultMode: DEFAULT_SESSION_MODE,
+      modes: SESSION_MODES,
+      registryAvailable: this.registry() !== undefined,
+      archivedCount: 0,
+      note: 'Session ids and membership come from the official DSH workspaceRegistry. Display titles never decide identity. QQ scene mapping is unavailable without a public trusted resolver, so only stable Session ids are accepted.',
+    };
+    if (!status.bound || status.state !== 'ready') return output;
+    const entity = liveWorkspace(this.registry(), status.workspaceId);
+    const record = safeWorkspace(entity);
+    if (record === null) return output;
+    const rules = this.store.listSessionRules(status.workspaceId);
+    const ruleMap = new Map(rules.map((rule) => [rule.sessionId, rule]));
+    const archived = new Set();
+    try {
+      const ids = this.registry()?.archivedSessionIds;
+      if (Array.isArray(ids)) for (const id of ids) if (typeof id === 'string') archived.add(id);
+    } catch {
+      // A failing archived getter is treated as no archived ids only for this
+      // display projection; authorization still resolves membership live.
+    }
+    output.rules = rules;
+    output.archivedCount = [...archived].filter((id) => record.sessionIds.includes(id)).length;
+    output.sessions = record.sessionIds.slice(0, 500).map((sessionId) => {
+      const rule = ruleMap.get(sessionId);
+      return {
+        sessionId,
+        mode: archived.has(sessionId) ? 'archived' : rule?.mode ?? DEFAULT_SESSION_MODE,
+        explicit: rule !== undefined,
+        archived: archived.has(sessionId),
+        updatedAt: rule?.updatedAt ?? null,
+      };
+    });
+    return output;
+  }
+
+  /**
+   * Set or replace one stable-Session exception in the bound Workspace.
+   * @param {{sessionId: string, mode: string}} input - rule.
+   * @returns {Record<string, any>} refreshed overview.
+   */
+  setSessionRule(input) {
+    const status = this.bindingStatus();
+    if (!status.bound || status.state !== 'ready') {
+      throw new StateUnavailableError('a live bound Workspace is required before setting Session rules');
+    }
+    const sessionId = requireSessionId(input?.sessionId);
+    const mode = String(input?.mode ?? '');
+    if (!SESSION_MODES.includes(mode)) {
+      throw new StateValidationError(`mode must be one of ${SESSION_MODES.join(', ')}`);
+    }
+    const resolved = resolveWorkspaceSession({
+      registry: this.registry(),
+      workspaceId: status.workspaceId,
+      sessionId,
+    });
+    if (resolved.state === 'archived') {
+      throw new StateConflictError('archived Sessions cannot receive a policy exception');
+    }
+    if (resolved.state !== 'member') {
+      throw new StateValidationError('the Session is not a member of the bound Workspace');
+    }
+    this.store.transaction(() => {
+      this.store.upsertSessionRule(status.workspaceId, sessionId, mode);
+    });
+    return this.sessionRulesOverview();
+  }
+
+  /**
+   * Remove an exception, returning the Session to the Workspace default.
+   * @param {{sessionId: string}} input - session.
+   * @returns {Record<string, any>} refreshed overview.
+   */
+  clearSessionRule(input) {
+    const status = this.bindingStatus();
+    if (!status.bound) throw new StateUnavailableError('no Workspace is bound');
+    const sessionId = requireSessionId(input?.sessionId);
+    this.store.transaction(() => {
+      this.store.deleteSessionRule(status.workspaceId, sessionId);
+    });
+    return this.sessionRulesOverview();
+  }
+
+  /**
+   * Observe one trusted DSH Session event.  Only a completed real model turn
+   * with structured tool-work evidence can produce a small automatic change;
+   * plain greetings and text-only turns produce none.  No model call and no
+   * text/token heuristic participates.
+   * @param {Record<string, any>} session - live Session.
+   * @param {Record<string, any>} event - immutable Session event.
+   * @returns {Record<string, any>} outcome.
+   */
+  observeSessionEvent(session, event) {
+    try {
+      const sessionId = session?.id ?? session?.header?.id;
+      if (typeof sessionId !== 'string' || !sessionId) return { applied: false, reason: 'unknown_session' };
+      const type = String(event?.type ?? '');
+      if (type === 'turn/start') {
+        this.rememberTurn(sessionId, { turn: Number(event?.data?.turn), toolCalls: 0 });
+        return { applied: false, reason: 'turn_started' };
+      }
+      if (type === 'assistant/message') {
+        const turn = Number(event?.data?.turn);
+        const current = this.turnObservations.get(sessionId);
+        const observation = current && (!Number.isInteger(turn) || current.turn === turn)
+          ? current
+          : { turn: Number.isInteger(turn) ? turn : current?.turn, toolCalls: 0 };
+        const content = event?.data?.message?.content;
+        if (Array.isArray(content)) {
+          for (const block of content) {
+            if (block && block.type === 'tool-call') observation.toolCalls += 1;
+          }
+        }
+        this.rememberTurn(sessionId, observation);
+        return { applied: false, reason: 'assistant_message_observed' };
+      }
+      if (type !== 'turn/end') return { applied: false, reason: 'ignored_event' };
+      const observation = this.turnObservations.get(sessionId);
+      this.turnObservations.delete(sessionId);
+      const turn = Number(event?.data?.turn);
+      const reason = event?.data?.reason?.kind;
+      if (reason !== 'completed') {
+        // A missing or non-completed reason is unknown evidence, not a
+        // completed real model turn.  Fail closed instead of guessing.
+        return { applied: false, reason: 'turn_not_completed' };
+      }
+      if (!Number.isInteger(turn) || turn < 0) return { applied: false, reason: 'turn_unknown' };
+      if (!observation || observation.toolCalls < 1) return { applied: false, reason: 'no_work_evidence' };
+      return this.evolveCompletedTurn({
+        sessionId,
+        turn,
+        toolCalls: observation.toolCalls,
+        endSeq: Number.isInteger(Number(event?.seq)) ? Number(event.seq) : null,
+        endedAt: event?.time,
+      });
+    } catch (error) {
+      this.noteError(error);
+      return { applied: false, reason: 'observer_error', error: safeError(error) };
+    }
+  }
+
+  /** @param {string} sessionId - session. @param {Record<string, any>} observation - bounded state. */
+  rememberTurn(sessionId, observation) {
+    if (this.turnObservations.size > 200) {
+      const oldest = this.turnObservations.keys().next().value;
+      if (oldest !== undefined) this.turnObservations.delete(oldest);
+    }
+    this.turnObservations.set(sessionId, {
+      turn: Number.isInteger(observation.turn) ? observation.turn : 0,
+      toolCalls: Math.min(100, Number(observation.toolCalls) || 0),
+    });
+  }
+
+  /**
+   * Apply the one bounded Host event for a completed tool-bearing turn.
+   * @param {{sessionId: string, turn: number, toolCalls: number, endSeq: number|null, endedAt?: string}} input - evidence.
+   * @returns {Record<string, any>} outcome.
+   */
+  evolveCompletedTurn({ sessionId, turn, toolCalls, endSeq, endedAt }) {
+    const cfg = this.config();
+    const effective = this.effectiveForSession(sessionId);
+    if (!effective.allowed) return { applied: false, reason: effective.reason ?? effective.state };
+    if (effective.mode === 'read_only') return { applied: false, reason: 'read_only' };
+    if (effective.mode === 'disabled') return { applied: false, reason: 'disabled' };
+    if (effective.mode === 'legacy' || cfg.autoEventProcessingEnabled !== true) {
+      return { applied: false, reason: 'auto_evolution_disabled' };
+    }
+    if (cfg.autoEventMaxPerHour <= 0) return { applied: false, reason: 'hourly_cap_zero' };
+    const scopeId = effective.identity.scopeId;
+    const nowMs = this.clock();
+    const idempotencyKey = `host:${scopeId}:session:${sessionId}:turn:${turn}`;
+    // Idempotency outranks rate limiting: a redelivered turn/end must report
+    // the original application, never a misleading rate-limit outcome.
+    const existing = this.store.findEventByKey(idempotencyKey);
+    if (existing !== undefined) return { applied: false, reason: 'duplicate_turn', duplicate: true };
+    const last = this.store.lastHostEventForSession(scopeId, sessionId);
+    if (last !== null && cfg.autoEventMinIntervalSeconds > 0) {
+      const elapsed = nowMs - parseTimestamp(last);
+      if (elapsed >= 0 && elapsed < cfg.autoEventMinIntervalSeconds * 1000) {
+        return { applied: false, reason: 'rate_limited' };
+      }
+    }
+    const hourly = this.store.countHostEventsSince(scopeId, iso(nowMs - 3_600_000));
+    if (hourly >= cfg.autoEventMaxPerHour) return { applied: false, reason: 'hourly_cap' };
+    const scale = effective.mode === 'shared' ? clamp(Number(cfg.sharedEventWeight), 0.05, 1) : 1;
+    const base = {
+      mood: 0,
+      // Tool work says "effort", never "pleasant" or "unpleasant".  More tool
+      // calls cost a little more energy, capped so one turn stays small.
+      energy: -Math.min(1.6, 0.5 + toolCalls * 0.15),
+      curiosity: 0.3,
+      interest: 0,
+    };
+    const result = this.recordEventSync({
+      identity: effective.identity,
+      type: HOST_TURN_EVENT_TYPE,
+      source: 'host',
+      trust: 'trusted',
+      summary: '已完成回合的结构化工具工作证据（不保存原始会话内容）',
+      idempotencyKey,
+      sourceRef: `session:${sessionId}:turn:${turn}:end:${endSeq ?? 'unknown'}`,
+      evidence: [`session/turn:end#${endSeq ?? 'unknown'}`],
+      base,
+      scale,
+      originSessionId: sessionId,
+      occurredAt: iso(endedAt ? parseTimestamp(endedAt) : nowMs),
+    });
+    if (result.duplicate) return { applied: false, reason: 'duplicate_turn', duplicate: true };
+    return { applied: true, reason: 'applied', eventId: result.event.id, mode: effective.mode };
+  }
+
+  /** @returns {boolean} whether the optional Memory adapter is healthy. */
+  memoryAvailable() {
+    try {
+      return Boolean(this.memory && typeof this.memory.available === 'function' && this.memory.available());
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Model-safe health for one trusted Session. It exposes only static plugin
    * and integration availability plus this Session's own scope metadata and
    * last-event time. It deliberately omits global counts, global last-event
@@ -923,7 +1528,30 @@ export class StateService {
    */
   healthForSession(sessionId) {
     const cfg = this.config();
-    const identity = this.identityForSession(sessionId);
+    const effective = this.effectiveForSession(sessionId);
+    if (!effective.allowed) {
+      return {
+        version: this.version,
+        state: 'unavailable',
+        startedAt: this.startedAt,
+        schemaVersion: null,
+        scope: { known: false, privacy: 'private', source: 'unknown', authorization: 'denied' },
+        access: { allowed: false, mode: effective.mode, reason: effective.reason ?? effective.state },
+        lastEventAt: null,
+        integrations: {
+          life: { available: Boolean(this.getLife()), enabled: cfg.lifeIntegrationEnabled },
+          memory: {
+            available: this.memoryAvailable(),
+            enabled: cfg.memoryIntegrationEnabled,
+            writeEnabled: false,
+            writeAvailable: false,
+            writeReason: 'scene_scoped_memory_contract_unavailable',
+          },
+        },
+        note: 'State is not available for this Session; no state, counts, or reasons are exposed.',
+      };
+    }
+    const identity = effective.identity;
     let storeHealth;
     try {
       storeHealth = this.store.health();
@@ -958,8 +1586,16 @@ export class StateService {
       scope: {
         known: scopeKnown,
         privacy,
-        source: identity.kind,
+        source: effective.scopeKind === 'workspace' ? 'workspace' : identity.kind,
         authorization: 'session',
+        kind: effective.scopeKind,
+      },
+      access: {
+        allowed: true,
+        mode: effective.mode,
+        writable: effective.writable === true,
+        readOnly: effective.readOnly === true,
+        workspaceBound: effective.workspaceId !== null,
       },
       lastEventAt,
       integrations: {
@@ -980,6 +1616,55 @@ export class StateService {
         },
       },
       note: 'Only this Session\'s scope is reported. Cross-scene event times, global counts, errors, and private configuration are not exposed.',
+    };
+  }
+
+  /**
+   * One owner-only payload for the workspace, rules, and data pages.  It
+   * combines live registry membership, persisted rules, and the main state
+   * without including another Workspace's sessions or any raw event reason.
+   * @returns {Record<string, any>} overview.
+   */
+  workspaceOverview() {
+    const binding = this.bindingStatus();
+    const sessions = this.sessionRulesOverview();
+    let main = null;
+    if (binding.bound && binding.state === 'ready') {
+      try {
+        const scopeId = workspaceIdentity(binding.workspaceId).scopeId;
+        const view = this.adminView(scopeId, { includeInterests: true, includeAudit: false });
+        if (view && view.state) {
+          delete view.config;
+          main = view;
+        }
+      } catch (error) {
+        main = { unavailableReason: safeError(error) };
+      }
+    }
+    let schema = null;
+    try {
+      schema = this.store.inspect();
+    } catch (error) {
+      schema = { error: safeError(error) };
+    }
+    return {
+      binding,
+      workspaces: this.workspaces(),
+      defaultMode: DEFAULT_SESSION_MODE,
+      modes: SESSION_MODES,
+      rules: sessions.rules,
+      sessions: sessions.sessions,
+      archivedCount: sessions.archivedCount,
+      registryAvailable: sessions.registryAvailable,
+      main,
+      migration: this.store.migrationInfo(),
+      schema,
+      legacyNote: '旧 v1 私有 Scope、事件和审计原样保留，不会自动汇总到工作区主状态。',
+      qqSceneRules: {
+        implemented: false,
+        reason: 'no_public_trusted_scene_mapping',
+        note: '当前 DSH 未提供可公开验证的 QQ Scene 映射；仅支持稳定 Session ID 例外，避免按显示名称授权。',
+      },
     };
   }
 
@@ -1007,6 +1692,9 @@ export class StateService {
     this.lastError = null;
     this.lastIntegrityError = null;
     this.lastEventAt = null;
+    // Restored history invalidates in-memory turn observations; a later
+    // turn/end must not combine with pre-restore evidence.
+    this.turnObservations.clear();
     try {
       for (const row of this.store.listScopes()) {
         const event = this.store.lastEvent(row.id);
@@ -1059,6 +1747,16 @@ export class StateService {
       contextInjectionMode: cfg.contextInjectionMode,
       evolutionEnabled: cfg.stateEvolutionEnabled,
       modelAppraisalEnabled: cfg.modelAppraisalEnabled,
+      autoEventProcessingEnabled: cfg.autoEventProcessingEnabled,
+      workspace: this.bindingStatus(),
+      migration: this.store.migrationInfo(),
+      modelTools: {
+        state_get: { implemented: true, modeAware: true },
+        state_appraise: { implemented: true, enabled: cfg.modelAppraisalEnabled, extraLlmPerTurn: false },
+        state_interests: { implemented: true, modeAware: true },
+        state_health: { implemented: true, modeAware: true },
+        automaticExtraAppraisal: { implemented: false, enabled: false, note: '未实现；不会每轮额外调用模型' },
+      },
       integrations: {
         life: {
           available: Boolean(life && typeof life.getSessionBinding === 'function'),

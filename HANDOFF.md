@@ -1,6 +1,21 @@
 # amadeus-state 交接
 
-## 最新状态（2026-10-26）
+## 最新状态（2026-10-28，v1.1.0 候选）
+
+v1.1 主体已在分支 `codex/state-v1-1-workspace` 实现：官方 `workspaceRegistry` 稳定 ID/实时成员、Workspace 主状态、四种会话模式、可信 `turn/end` 自动演化、只读/独立/停用权限热更新、共享审计脱敏、安全 schema 1→2 迁移、`VACUUM INTO` 一致性备份和七页控制台。本轮未提交、未推送、未安装、未修改生产 Profile/数据、未运行 Desktop 实机验收。
+
+自动化结果（本地合成临时数据库）：
+
+```text
+npm test        # 136 tests: 135 pass + 1 official-schema skip
+npm run check   # build + release checks pass (29 fields)
+```
+
+异步入化的 `session/event` 订阅使用 `{ global: true }`，并有“跨 Session 观察到 + disposer 释放”回归。备份回归覆盖“已提交 WAL 行 + 阻塞 checkpoint”仍能完整恢复，且失败不留下未验证文件。迁移回归覆盖 v1 行保留、迁移前快照、失败 DDL 回滚、v1 备份恢复后自动迁移。
+
+仍未实机验证：真实 DSH Desktop 中的工作区选择/绑定、七页原生设置页布局与交互、真实 `turn/end` 事件顺序、QQ Scene 映射（当前明确未实现）、打包后安装/重启持久化。详见 `docs/verification/STATE_V1_1_CREATOR_REPORT.md`。最终包 SHA-256 以重新运行 `npm run package` 后的 `dist/PACKAGE_INFO.json` 为准；本轮未安装 Desktop。
+
+## 历史状态（2026-10-26，v1.0.0）
 
 State 1.0.0 的主要实现和恢复路径返工由原持续 DSH Creator 会话完成。Codex 独立 `npm test` 为 108 pass、1 skip、0 fail；`check` 与 `verify:package` 通过。用户版 README 更新后重建的候选包 `amadeus-state-1.0.0.tgz` SHA-256 为 `782f36651ad82a2a9130b957be9572e28f786fffbea2c68a7e2cc23e4b526ffe`。全新隔离官方 DSH Desktop 对同一运行时代码完成原生设置、GUI 备份与二次确认恢复、恢复前安全备份、合成兴趣管理、参数保存/硬重启、停启/卸载重装与数据保留；SQLite `quick_check=ok`。原 PR #1 保持 OPEN，未合并、未公开发行或部署生产。
 

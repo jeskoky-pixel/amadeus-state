@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { sameOrigin } from '../src/http.js';
-import { fakeLife, httpHarness, makeService } from './helpers.js';
+import { fakeLife, fakeWorkspaceRegistry, httpHarness, makeService } from './helpers.js';
 
 function req(headers = {}) {
   return {
@@ -98,7 +98,7 @@ test('status, scopes, overview, interests, events, and diagnostics are scoped an
     const diagnostics = await api.request('GET', '/diagnostics');
     assert.equal(diagnostics.status, 200);
     assert.equal(JSON.stringify(diagnostics.body).includes(h.temp.dir), false);
-    assert.equal(diagnostics.body.data.schema.schemaVersion, '1');
+    assert.equal(diagnostics.body.data.schema.schemaVersion, '2');
 
     assert.equal(view.scope.id, scope.id);
   } finally {
@@ -291,6 +291,67 @@ test('invalid scope, page, and confirmation values are rejected without writes',
       400,
     );
     assert.equal(h.store.health().counts.events, 0);
+  } finally {
+    h.close();
+  }
+});
+
+test('Workspace binding and Session rules are owner API operations with live membership checks', async () => {
+  const registry = fakeWorkspaceRegistry({
+    workspaces: [
+      { id: 'ws-alpha', title: 'Alpha', sessionIds: ['s1', 's2'] },
+      { id: 'ws-beta', title: 'Beta', sessionIds: ['s3'] },
+    ],
+  });
+  const h = makeService({ registry });
+  try {
+    const api = await httpHarness(h.service);
+    const list = await api.request('GET', '/workspaces');
+    assert.equal(list.status, 200);
+    assert.equal(list.body.data.binding.state, 'unbound');
+    assert.equal(list.body.data.workspaces.length, 2);
+    assert.equal(JSON.stringify(list.body).includes(h.temp.dir), false);
+
+    const bind = await api.request('POST', '/workspace', { action: 'bind', workspaceId: 'ws-alpha' });
+    assert.equal(bind.status, 200);
+    assert.equal(bind.body.data.state, 'ready');
+
+    const workspace = await api.request('GET', '/workspace');
+    assert.equal(workspace.status, 200);
+    assert.equal(workspace.body.data.binding.workspaceId, 'ws-alpha');
+    assert.equal(workspace.body.data.sessions.length, 2);
+    assert.equal(workspace.body.data.sessions[0].mode, 'shared');
+    assert.equal(workspace.body.data.qqSceneRules.implemented, false);
+
+    const rule = await api.request('POST', '/session-rules', { action: 'set', sessionId: 's2', mode: 'read_only' });
+    assert.equal(rule.status, 200);
+    assert.equal(rule.body.data.sessions.find((entry) => entry.sessionId === 's2').mode, 'read_only');
+
+    const rejected = await api.request('POST', '/session-rules', { action: 'set', sessionId: 's3', mode: 'disabled' });
+    assert.equal(rejected.status, 400);
+
+    const cleared = await api.request('POST', '/session-rules', { action: 'clear', sessionId: 's2' });
+    assert.equal(cleared.status, 200);
+    assert.equal(cleared.body.data.sessions.find((entry) => entry.sessionId === 's2').explicit, false);
+
+    const noConfirm = await api.request('POST', '/workspace', { action: 'unbind' });
+    assert.equal(noConfirm.status, 400);
+    const unbound = await api.request('POST', '/workspace', { action: 'unbind', confirm: 'UNBIND' });
+    assert.equal(unbound.status, 200);
+    assert.equal(unbound.body.data.state, 'unbound');
+  } finally {
+    h.close();
+  }
+});
+
+test('a non-owner cannot bind or change Session rules', async () => {
+  const registry = fakeWorkspaceRegistry({ workspaces: [{ id: 'ws-alpha', sessionIds: ['s1'] }] });
+  const h = makeService({ registry });
+  try {
+    const remote = await httpHarness(h.service, { owner: false });
+    assert.equal((await remote.request('GET', '/workspace')).status, 403);
+    assert.equal((await remote.request('POST', '/workspace', { action: 'bind', workspaceId: 'ws-alpha' })).status, 403);
+    assert.equal((await remote.request('POST', '/session-rules', { action: 'set', sessionId: 's1', mode: 'disabled' })).status, 403);
   } finally {
     h.close();
   }
