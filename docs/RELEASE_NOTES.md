@@ -1,6 +1,6 @@
 # Amadeus State 1.1.0 — Release Notes
 
-发布日期：2026-10-28（候选）。发行渠道：内部候选（未公开、未提交、未部署）。包名：`@amadeus/state`。包版本：`1.1.0`。SQLite schema：`2`。
+合并日期：2026-10-28。状态：main 开发基线（未公开发行、未部署生产）。包名：`@amadeus/state`。包版本：`1.1.0`。SQLite schema：`2`。
 
 ## 发行制品
 

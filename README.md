@@ -2,7 +2,7 @@
 
 Amadeus State 是独立的 DeepSeek Harness（DSH）Cordis 插件，为 Amadeus 提供持续、可解释、可持久化的 **Mood / Energy / Curiosity** 状态与兴趣演化。v1.1 起可以把 State 显式绑定到一个官方 DSH Workspace，让该工作区的合法 Session 共享一份主状态，同时允许每个会话独立、只读或停用。
 
-> 候选版本：**1.1.0（2026-10-28）**。代码尚未提交、发布或部署；隔离 DSH Desktop 实机验收仍由 Codex 执行。v1.0 的旧 Scope、事件和审计不会被自动合并。
+> **1.1.0 已合并 main（2026-10-28）**，作为个人电脑实机测试的开发基线；尚未公开发行或部署生产。隔离 DSH Desktop 联合验收及真实 NapCat 限制见 [四插件报告](https://github.com/jeskoky-pixel/amadeus-qq/blob/main/docs/verification/FOUR_PLUGIN_V11_JOINT_2026-10-28.md)。v1.0 的旧 Scope、事件和审计不会被自动合并。
 
 ## 日常使用
 
