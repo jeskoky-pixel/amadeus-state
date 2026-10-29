@@ -3,7 +3,7 @@
   "version": "1.2.0",
   "description": "Amadeus State: Workspace-bound shared Mood, Energy, Curiosity, and interests for DeepSeek Harness, with a seven-page native console.",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "main": "src/index.js",
   "exports": {
@@ -32,6 +32,7 @@
     "docs/verification",
     "cordis.patch.yml",
     "README.md",
+    "LICENSE",
     "CHANGELOG.md",
     "icon.svg",
     "docs/UPGRADE_POLICY.md",

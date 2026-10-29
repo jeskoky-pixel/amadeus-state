@@ -114,4 +114,4 @@ npm run bench       # isolated read/write/context overhead sample
 
 ## 许可证
 
-本仓库许可证仍由所有者决定；当前 `package.json` 标记为 `UNLICENSED`，不自动继承主项目或其他仓库的许可证。
+本仓库经所有者确认采用 [MIT 许可证](LICENSE)。v1.2 候选保留 `private:true`，不通过 npm 发布；正式安装源计划为固定版本 GitHub Release 预构建包，公开发行仍需最后确认。
