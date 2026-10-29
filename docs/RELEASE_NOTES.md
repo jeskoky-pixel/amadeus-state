@@ -1,4 +1,10 @@
-# Amadeus State 1.1.0 — Release Notes
+# Amadeus State — Release Notes
+
+## 1.2.0 内部发行候选（未公开发布）
+
+- 统一 `@amadeus/state@1.2.0`，保留 `amadeus-state` Bundle ID、工作区绑定、状态历史与 schema 2；本轮聚焦安装包和升级兼容。
+- 预构建 Client、Bundle Manifest、市场资源和迁移说明已纳入候选包；隔离 DSH Desktop `0.2.1-rc.3` 所附 CLI 完成 1.1.0 → 1.2.0 的合成数据升级、重启和恢复演练。
+- Desktop 图形安装、公开市场更新和真实模型联合运行尚未验收；公开发行另需确认。
 
 合并日期：2026-10-28。状态：main 开发基线（未公开发行、未部署生产）。包名：`@amadeus/state`。包版本：`1.1.0`。SQLite schema：`2`。
 

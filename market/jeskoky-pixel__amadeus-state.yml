@@ -1,5 +1,6 @@
 url: https://github.com/jeskoky-pixel/amadeus-state
 name: jeskoky-pixel/amadeus-state
+tarball: https://github.com/jeskoky-pixel/amadeus-state/releases/download/v1.2.0/amadeus-state-1.2.0.tgz
 category: identity
 description:
   en: Maintains persistent mood, energy, curiosity and interests for DeepSeek Harness agents.
