@@ -1,6 +1,6 @@
 {
   "name": "@amadeus/state",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Amadeus State: Workspace-bound shared Mood, Energy, Curiosity, and interests for DeepSeek Harness, with a seven-page native console.",
   "private": true,
   "license": "UNLICENSED",
@@ -33,7 +33,14 @@
     "cordis.patch.yml",
     "README.md",
     "CHANGELOG.md",
-    "icon.svg"
+    "icon.svg",
+    "docs/UPGRADE_POLICY.md",
+    "docs/DATA_MIGRATION.md",
+    "docs/RELEASE_CHECKLIST.md",
+    "docs/INSTALL_V1_2.md",
+    "scripts/release-audit.mjs",
+    "screenshots.json",
+    "assets/market-icon.png"
   ],
   "dsh": {
     "manifestVersion": 1,
@@ -71,6 +78,7 @@
     "bench": "node scripts/bench.mjs",
     "check": "node scripts/build-client.mjs && node scripts/check.mjs",
     "verify:package": "node scripts/verify-package.mjs",
-    "package": "node scripts/package.mjs"
+    "package": "node scripts/package.mjs",
+    "verify:release": "node scripts/release-audit.mjs"
   }
 }

@@ -126,7 +126,7 @@ test('state_health is safe and excludes paths and secrets', async () => {
     registerTools(tools.ctx, h.service);
     const result = await tools.call('state_health', {}, execFor('session-tool-health'));
     assert.equal(result.state, 'ready');
-    assert.equal(result.version, '1.1.0');
+    assert.equal(result.version, '1.2.0');
     assert.equal(JSON.stringify(result).includes(h.temp.dir), false);
     assert.equal(JSON.stringify(result).includes('state.sqlite'), false);
   } finally {

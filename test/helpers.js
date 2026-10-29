@@ -40,7 +40,7 @@ export function makeService(options = {}) {
     getRegistry: () => options.registry,
     memory: options.memory,
     clock,
-    version: '1.1.0',
+    version: '1.2.0',
     startedAt: new Date(T0).toISOString(),
   });
   return {
