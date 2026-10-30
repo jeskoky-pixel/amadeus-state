@@ -31,7 +31,7 @@ if (/^\s*(import|export)\s/m.test(body)) {
 }
 
 const bundle = `window.__ModuleLoader__.load({
-  id: '@amadeus/state',
+  id: '@fg-lab/amadeus-state',
   factory: (require) => {
     const React = require('react');
     const h = React.createElement;

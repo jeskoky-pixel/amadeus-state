@@ -114,4 +114,4 @@ npm run bench       # isolated read/write/context overhead sample
 
 ## 许可证
 
-本仓库经所有者确认采用 [MIT 许可证](LICENSE)。v1.2 候选保留 `private:true`，不通过 npm 发布；正式安装源计划为固定版本 GitHub Release 预构建包，公开发行仍需最后确认。
+本仓库经所有者确认采用 [MIT 许可证](LICENSE)。v1.2 发行包已配置为公开 npm 包，并保留固定版本 GitHub Release 安装源；实际发布状态以发行验收报告为准。

@@ -10,7 +10,7 @@ const bundle = readFileSync(join(root, 'lib', 'client.js'), 'utf8');
 
 test('client bundle is a lazy-CJS module with the real package id', () => {
   assert.match(bundle, /window\.__ModuleLoader__\.load\(\{/);
-  assert.match(bundle, /id:\s*'@amadeus\/state'/);
+  assert.match(bundle, /id:\s*'@fg-lab\/amadeus-state'/);
   assert.match(bundle, /factory:\s*\(require\)\s*=>/);
   assert.doesNotMatch(bundle, /^\s*import\s/m);
   assert.doesNotMatch(bundle, /^\s*export\s/m);
@@ -46,7 +46,7 @@ test('factory materializes with only the React baseline module', () => {
     fetch: async () => ({ ok: false, status: 503, json: async () => ({ ok: false, error: 'offline' }) }),
   };
   vm.runInNewContext(bundle, sandbox, { filename: 'lib/client.js' });
-  assert.equal(loaded.id, '@amadeus/state');
+  assert.equal(loaded.id, '@fg-lab/amadeus-state');
   const module = loaded.factory((name) => {
     if (name === 'react') return fakeReact;
     throw new Error(`unexpected module request: ${name}`);
@@ -152,9 +152,9 @@ test('apply registers one settings.section and one scoped detail section, idempo
   assert.equal(detail.spec.id, 'amadeus-state-basic-config');
   assert.equal(detail.spec.order, 30);
   assert.equal(typeof detail.render, 'function');
-  assert.ok(detail.render({ subject: { kind: 'bundle', pkg: { name: '@amadeus/state' } } }));
+  assert.ok(detail.render({ subject: { kind: 'bundle', pkg: { name: '@fg-lab/amadeus-state' } } }));
   assert.equal(detail.render({ subject: { kind: 'bundle', pkg: { name: '@other/plugin' } } }), null);
-  assert.ok(detail.render({ subject: { kind: 'row', pkg: { name: '@amadeus/state' }, row: { moduleName: '@amadeus/state' } } }));
+  assert.ok(detail.render({ subject: { kind: 'row', pkg: { name: '@fg-lab/amadeus-state' }, row: { moduleName: '@fg-lab/amadeus-state' } } }));
   assert.equal(disposed, 0);
   assert.equal(unregistered, 0);
   assert.equal(effects.length, 2);
@@ -186,9 +186,9 @@ test('injected metadata covers every public field with both languages', () => {
 
 test('package manifest is independent and includes the built client', () => {
   const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-  assert.equal(pkg.name, '@amadeus/state');
+  assert.equal(pkg.name, '@fg-lab/amadeus-state');
   assert.equal(pkg.version, '1.2.0');
-  assert.equal(pkg.private, true);
+  assert.notEqual(pkg.private, true);
   assert.equal(pkg.type, 'module');
   assert.equal(pkg.dependencies, undefined);
   assert.equal(pkg.peerDependencies, undefined);

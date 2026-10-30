@@ -11,7 +11,7 @@ test('bundle patch inserts exactly the State package', () => {
   const patch = readFileSync(join(root, 'cordis.patch.yml'), 'utf8');
   const ids = [...patch.matchAll(/- id:\s*(\S+)/g)].map((match) => match[1]);
   assert.deepEqual(ids, ['amadeus-state']);
-  assert.match(patch, /name: '@amadeus\/state'/);
+  assert.match(patch, /name: '@fg-lab\/amadeus-state'/);
 });
 
 test('documentation, release notes, upgrade docs and icon are present', () => {

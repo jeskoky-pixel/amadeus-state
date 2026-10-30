@@ -1,8 +1,7 @@
 {
-  "name": "@amadeus/state",
+  "name": "@fg-lab/amadeus-state",
   "version": "1.2.0",
   "description": "Amadeus State: Workspace-bound shared Mood, Energy, Curiosity, and interests for DeepSeek Harness, with a seven-page native console.",
-  "private": true,
   "license": "MIT",
   "type": "module",
   "main": "src/index.js",
@@ -81,5 +80,16 @@
     "verify:package": "node scripts/verify-package.mjs",
     "package": "node scripts/package.mjs",
     "verify:release": "node scripts/release-audit.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jeskoky-pixel/amadeus-state.git"
+  },
+  "homepage": "https://github.com/jeskoky-pixel/amadeus-state#readme",
+  "bugs": {
+    "url": "https://github.com/jeskoky-pixel/amadeus-state/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

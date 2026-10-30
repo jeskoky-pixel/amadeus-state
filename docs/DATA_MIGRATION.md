@@ -2,7 +2,7 @@
 
 ## 当前格式
 
-- 发行包：`@amadeus/state@1.2.0`
+- 发行包：`@fg-lab/amadeus-state@1.2.0`
 - 持久 Schema Version：SQLite `meta.schema_version = 2` (`src/model.js`)
 - 数据范围：独立的 `$DSH_HOME/amadeus-state/state.sqlite`（或管理员选择的数据库路径）、WAL/SHM、备份；DSH Profile 中的插件配置。
 - 本轮迁移：1.1.0 → 1.2.0 不改变 schema。现有 v1 → v2 迁移在校验、备份后执行；未来未知版本拒绝使用。
