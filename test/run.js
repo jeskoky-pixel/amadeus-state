@@ -24,3 +24,6 @@ import './client.test.js';
 import './package.test.js';
 import './release-package.test.js';
 import './apply.test.js';
+
+import './shared-form-lifecycle.test.js';
+import './settings-schema-compat.test.js';
