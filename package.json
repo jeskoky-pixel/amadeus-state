@@ -40,7 +40,10 @@
     "docs/INSTALL_V1_2.md",
     "scripts/release-audit.mjs",
     "screenshots.json",
-    "assets/market-icon.png"
+    "assets/market-icon.png",
+    "README.zh-CN.md",
+    "REFERENCE.md",
+    "docs/PUBLISHING.md"
   ],
   "dsh": {
     "manifestVersion": 1,
