@@ -94,7 +94,7 @@ export function verifyPackage({ root: repositoryRoot = root } = {}) {
   const packageEntry = entries.find((entry) => entry.path === 'package/package.json');
   if (packageEntry === undefined) fail('package/package.json is missing');
   const packageJson = JSON.parse(packageEntry.data.toString('utf8'));
-  if (packageJson.name !== '@amadeus/state') fail('package name is not @amadeus/state');
+  if (packageJson.name !== '@fg-lab/amadeus-state') fail('package name is not @fg-lab/amadeus-state');
   if (packageJson.version !== info.version) fail('package version != PACKAGE_INFO.version');
   if (packageJson.version !== STATE_VERSION) fail(`package version ${packageJson.version} != STATE_VERSION ${STATE_VERSION}`);
   if (packageJson.type !== 'module') fail('package must be an ES module');
@@ -147,7 +147,7 @@ export function verifyPackage({ root: repositoryRoot = root } = {}) {
   const clientEntry = entries.find((entry) => entry.path === 'package/lib/client.js');
   if (clientEntry === undefined) fail('lib/client.js is missing');
   const client = clientEntry.data.toString('utf8');
-  for (const marker of ['window.__ModuleLoader__.load', "id: '@amadeus/state'", 'settings.section', 'plugins.detail.section', 'configForms']) {
+  for (const marker of ['window.__ModuleLoader__.load', "id: '@fg-lab/amadeus-state'", 'settings.section', 'plugins.detail.section', 'configForms']) {
     if (!client.includes(marker)) fail(`client bundle missing marker: ${marker}`);
   }
 

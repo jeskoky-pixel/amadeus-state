@@ -19,7 +19,7 @@ function check(condition, message) {
   if (!condition) failures.push(message);
 }
 
-check(packageJson.name === '@amadeus/state', 'package name must be @amadeus/state');
+check(packageJson.name === '@fg-lab/amadeus-state', 'package name must be @fg-lab/amadeus-state');
 check(packageJson.version === STATE_VERSION, `package version ${packageJson.version} must match STATE_VERSION ${STATE_VERSION}`);
 check(packageJson.type === 'module', 'package must be an ES module');
 check(packageJson.engines?.node === '>=22.13.0', 'Node engine must be >=22.13.0');
@@ -69,11 +69,11 @@ for (const file of markdownFiles) {
 
 const patch = readFileSync(join(root, 'cordis.patch.yml'), 'utf8');
 check(/- id: amadeus-state/.test(patch), 'bundle patch must insert amadeus-state');
-check(/name: '@amadeus\/state'/.test(patch), 'bundle patch must reference @amadeus/state');
+check(/name: '@fg-lab\/amadeus-state'/.test(patch), 'bundle patch must reference @fg-lab/amadeus-state');
 
 const client = readFileSync(join(root, 'lib/client.js'), 'utf8');
 check(client.includes('window.__ModuleLoader__.load'), 'client must use the lazy-CJS loader');
-check(client.includes("id: '@amadeus/state'"), 'client loader id must be the package name');
+check(client.includes("id: '@fg-lab/amadeus-state'"), 'client loader id must be the package name');
 check(client.includes('settings.section'), 'client must register settings.section');
 check(client.includes('plugins.detail.section'), 'client must register plugins.detail.section');
 check(client.includes('configForms'), 'client must use the authoritative config form');

@@ -1,8 +1,10 @@
-# Amadeus State v1.1
+# Amadeus State v1.2.0（发行候选）
+
+预构建 DSH Bundle 已在官方 DSH Desktop `0.2.1-rc.3` 附带运行时的隔离 Profile 中验证安装和升级。公开 npm 与市场收录尚未执行。安装、升级、卸载及数据保留见 [v1.2 安装说明](docs/INSTALL_V1_2.md)、[升级政策](docs/UPGRADE_POLICY.md) 和 [数据迁移](docs/DATA_MIGRATION.md)。
 
 Amadeus State 是独立的 DeepSeek Harness（DSH）Cordis 插件，为 Amadeus 提供持续、可解释、可持久化的 **Mood / Energy / Curiosity** 状态与兴趣演化。v1.1 起可以把 State 显式绑定到一个官方 DSH Workspace，让该工作区的合法 Session 共享一份主状态，同时允许每个会话独立、只读或停用。
 
-> **1.1.0 已合并 main（2026-10-28）**，作为个人电脑实机测试的开发基线；尚未公开发行或部署生产。隔离 DSH Desktop 联合验收及真实 NapCat 限制见 [四插件报告](https://github.com/jeskoky-pixel/amadeus-qq/blob/main/docs/verification/FOUR_PLUGIN_V11_JOINT_2026-10-28.md)。v1.0 的旧 Scope、事件和审计不会被自动合并。
+> 历史基线：1.1.0 已合并 main（2026-10-28），隔离 Desktop 联合验收见 [四插件报告](https://github.com/jeskoky-pixel/amadeus-qq/blob/main/docs/verification/FOUR_PLUGIN_V11_JOINT_2026-10-28.md)。v1.0 的旧 Scope、事件和审计不会被自动合并。
 
 ## 日常使用
 
@@ -112,4 +114,4 @@ npm run bench       # isolated read/write/context overhead sample
 
 ## 许可证
 
-本仓库许可证仍由所有者决定；当前 `package.json` 标记为 `UNLICENSED`，不自动继承主项目或其他仓库的许可证。
+本仓库经所有者确认采用 [MIT 许可证](LICENSE)。v1.2 发行包已配置为公开 npm 包，并保留固定版本 GitHub Release 安装源；实际发布状态以发行验收报告为准。

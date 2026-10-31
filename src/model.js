@@ -9,7 +9,7 @@
 export const STATE_SCHEMA_VERSION = '2';
 
 /** Plugin version reported by health/status. */
-export const STATE_VERSION = '1.1.0';
+export const STATE_VERSION = '1.2.0';
 
 /** Session policy modes for a Workspace-bound installation. */
 export const SESSION_MODES = Object.freeze(['shared', 'read_only', 'isolated', 'disabled']);

@@ -2009,7 +2009,7 @@ function Panel({ ctx }) {
           h('div', { className: 'brandMark', 'aria-hidden': 'true' }, 'A'),
           h('div', null, h('strong', null, t('title')), h('small', null, lang === 'en' ? 'Independent DSH plugin' : '独立 DSH 插件')),
         ),
-        h('span', { className: 'sideTag' }, '@amadeus/state'),
+        h('span', { className: 'sideTag' }, '@fg-lab/amadeus-state'),
         h('div', { className: 'sideLabel' }, 'State'),
         nav,
       ),
@@ -2042,10 +2042,10 @@ function Panel({ ctx }) {
 }
 
 function isStateSubject(subject) {
-  if (!subject || typeof subject !== 'object' || subject.pkg?.name !== '@amadeus/state') return false;
+  if (!subject || typeof subject !== 'object' || subject.pkg?.name !== '@fg-lab/amadeus-state') return false;
   if (subject.kind === 'bundle') return true;
   if (subject.kind === 'row') {
-    return subject.row?.moduleName === '@amadeus/state' || subject.row?.rowId === 'amadeus-state';
+    return subject.row?.moduleName === '@fg-lab/amadeus-state' || subject.row?.rowId === 'amadeus-state';
   }
   return false;
 }

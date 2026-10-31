@@ -3,4 +3,4 @@
 # Settings -> Plugins page); do not merge this row into a live profile by hand.
 - insert:
     - id: amadeus-state
-      name: '@amadeus/state'
+      name: '@fg-lab/amadeus-state'

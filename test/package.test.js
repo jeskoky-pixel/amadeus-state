@@ -11,7 +11,7 @@ test('bundle patch inserts exactly the State package', () => {
   const patch = readFileSync(join(root, 'cordis.patch.yml'), 'utf8');
   const ids = [...patch.matchAll(/- id:\s*(\S+)/g)].map((match) => match[1]);
   assert.deepEqual(ids, ['amadeus-state']);
-  assert.match(patch, /name: '@amadeus\/state'/);
+  assert.match(patch, /name: '@fg-lab\/amadeus-state'/);
 });
 
 test('documentation, release notes, upgrade docs and icon are present', () => {
@@ -48,7 +48,7 @@ test('documentation, release notes, upgrade docs and icon are present', () => {
 
 test('release identity and compatibility are consistent', () => {
   const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-  assert.equal(pkg.version, '1.1.0');
+  assert.equal(pkg.version, '1.2.0');
   assert.equal(pkg.version, STATE_VERSION);
   assert.equal(pkg.engines.node, '>=22.13.0');
   assert.equal(pkg.engines.dsh, '>=0.2.1-rc.3 <0.3.0');
