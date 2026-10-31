@@ -2,6 +2,8 @@
 
 ## 1.2.0 内部发行候选（未公开发布）
 
+- 修复设置页卸载时销毁 Host 共享表单的问题，关闭后重新打开仍可保存。
+- 修复 Desktop 序列化 Schema 将 UI 步长错误用作校验约束的问题；保留已有合法数值，不舍入、不重置配置。新增真实 Schemastery 与共享表单生命周期回归测试。
 - 统一 `@fg-lab/amadeus-state@1.2.0`，保留 `amadeus-state` Bundle ID、工作区绑定、状态历史与 schema 2；本轮聚焦安装包和升级兼容。
 - 预构建 Client、Bundle Manifest、市场资源和迁移说明已纳入候选包；隔离 DSH Desktop `0.2.1-rc.3` 所附 CLI 完成 1.1.0 → 1.2.0 的合成数据升级、重启和恢复演练。
 - 本仓库经所有者确认采用 MIT；本轮发行源为公开 npm 包和固定版本 GitHub Release 包；实际发布须以最终验收结果为准。

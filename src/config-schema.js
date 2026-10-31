@@ -26,7 +26,8 @@ function fieldSchema(field) {
     schema = Schema.number();
     if (field.min !== undefined) schema.min(field.min);
     if (field.max !== undefined) schema.max(field.max);
-    if (field.step !== undefined) schema.step(field.step);
+    // field.step is a UI increment, not an accepted-value constraint.
+    // Publishing it as Schemastery step would reject existing Host-valid values.
   }
   schema.default(field.default);
   schema.description(`${field.zh.label} — ${field.zh.help}`);
