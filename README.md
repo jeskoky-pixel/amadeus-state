@@ -1,5 +1,7 @@
 # Amadeus State
 
+<img src="assets/market-icon.png" width="80" alt="Amadeus state logo">
+
 [简体中文](README.zh-CN.md) · [Detailed configuration](REFERENCE.md) · [Issues](https://github.com/jeskoky-pixel/amadeus-state/issues)
 
 Shared Workspace state with persistent evolution history.
@@ -9,6 +11,16 @@ Target package: **`@fg-lab/amadeus-state@1.2.0`**. Tested runtime baseline: offi
 ## Release status
 
 Productization candidate. Public npm and GitHub Release publication are pending release gates and npm account authorization. A version in this README is not evidence of publication. See [publishing policy](docs/PUBLISHING.md).
+
+## What you can do
+
+- Maintain mood, energy, curiosity and interest weights with persistent events and evolution history.
+- Bind a Workspace and configure supported Session overrides, exclusions and evolution rules.
+- Inspect current values, rules and stored history through the native DSH settings visualizations.
+
+Example: inspect an interest's current weight and event history, change an evolution rule, and verify the subsequent state update without rewriting long-term memories.
+
+State represents current condition and change; Memory stores facts, experiences and long-term knowledge. It does not replace Persona's core identity. QQ-specific Scene rules and unavailable optional Memory-write contracts must not be assumed supported; consult the detailed reference for the implemented boundary.
 
 ## Install and configure
 
